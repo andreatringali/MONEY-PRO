@@ -829,7 +829,7 @@
   }
 
   // ---------- Finanziamenti ----------
-  function loanResiduo(l) { return Math.max(0, (l.months || 0) - (l.paid || 0)) * (l.rata || 0); }
+  function loanResiduo(l) { return l.residuo > 0 ? l.residuo : Math.max(0, (l.months || 0) - (l.paid || 0)) * (l.rata || 0); }
   function renderLoans() {
     const box = $("#loans-list");
     const loans = data.loans || [];
@@ -872,12 +872,13 @@
       $("#lm-rata").value = loan.rata; $("#lm-name").value = loan.name;
       $("#lm-months").value = loan.months; $("#lm-paid").value = loan.paid;
       $("#lm-day").value = loan.dayOfMonth || ""; accSel.value = loan.accountId || (data.accounts[0] && data.accounts[0].id);
+      $("#lm-residuo").value = loan.residuo > 0 ? loan.residuo : "";
       $("#lm-delete").hidden = false;
     } else {
       loanEditId = null;
       $("#lm-title").textContent = "Nuovo finanziamento";
       $("#lm-rata").value = ""; $("#lm-name").value = "";
-      $("#lm-months").value = ""; $("#lm-paid").value = "0"; $("#lm-day").value = "";
+      $("#lm-months").value = ""; $("#lm-paid").value = "0"; $("#lm-day").value = ""; $("#lm-residuo").value = "";
       accSel.value = data.accounts[0] ? data.accounts[0].id : "";
       $("#lm-delete").hidden = true;
     }
@@ -890,14 +891,15 @@
     const paid = Math.min(months, Math.max(0, parseInt($("#lm-paid").value, 10) || 0));
     const dayOfMonth = Math.min(28, Math.max(1, parseInt($("#lm-day").value, 10) || 1));
     const accountId = $("#lm-account").value || (data.accounts[0] && data.accounts[0].id);
+    const residuo = parseFloat(String($("#lm-residuo").value || "0").replace(",", ".")) || 0;
     if (!name) { toast("Dai un nome al finanziamento"); return; }
     if (!(rata > 0) || !(months > 0)) { toast("Inserisci rata e numero rate"); return; }
     if (!data.loans) data.loans = [];
     if (loanEditId) {
-      Object.assign(data.loans.find((x) => x.id === loanEditId), { name, rata, months, paid, dayOfMonth, accountId });
+      Object.assign(data.loans.find((x) => x.id === loanEditId), { name, rata, months, paid, dayOfMonth, accountId, residuo });
       toast("Finanziamento aggiornato");
     } else {
-      data.loans.push({ id: "loan_" + uid(), name, rata, months, paid, dayOfMonth, accountId });
+      data.loans.push({ id: "loan_" + uid(), name, rata, months, paid, dayOfMonth, accountId, residuo });
       toast("Finanziamento aggiunto");
     }
     save(); render(); closeLoanEditor();
@@ -912,6 +914,7 @@
     const l = (data.loans || []).find((x) => x.id === id);
     if (!l || l.paid >= l.months) return;
     l.paid += 1;
+    if (l.residuo > 0) l.residuo = Math.max(0, round2(l.residuo - l.rata));
     const cat = data.categories.find((c) => c.id === "finanziamenti_expense") || data.categories.find((c) => c.kind === "expense");
     data.transactions.push({
       id: uid(), accountId: l.accountId, categoryId: cat ? cat.id : null, kind: "expense",
