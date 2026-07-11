@@ -1,5 +1,5 @@
 /* Money Pro service worker — cache offline */
-const CACHE = "moneypro-v1";
+const CACHE = "moneypro-v2";
 const ASSETS = [
   "./",
   "./index.html",

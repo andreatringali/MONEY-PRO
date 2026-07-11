@@ -1,55 +1,57 @@
 # Money Pro 💶
 
-Web app (PWA) per tenere sotto controllo la tua cassa: **entrate, uscite, rate fisse e mutui**.
+Web app (PWA) per tenere sotto controllo la tua cassa, ispirata alle app di gestione
+finanziaria personale: **conti, entrate, uscite, operazioni programmate, rate e mutui**.
 I dati restano **solo sul tuo dispositivo** (localStorage); puoi spostarli con export/import.
 
 ## Caratteristiche
 
-- **Saldo cassa** sempre in evidenza
-- **Movimenti**: entrate e uscite con categoria, data e filtro per mese
-- **Rate fisse / mutui**: importo mensile, giorno di addebito, numero rate totali
-  - avanzamento (es. `12/120`), importo residuo, rate concluse
-  - "Rate in scadenza" con pulsante **Paga** che registra il movimento
-- **PWA installabile**: si aggiunge alla home come un'app e funziona **offline**
+- **Oggi**: saldo attuale, previsione a 30 giorni e lista delle **operazioni programmate**
+  (con stato *Scaduta*, badge colorati e pulsante **Paga** che le conferma in cassa)
+- **Bilancio**: patrimonio netto e saldo di ogni **conto** (es. Andrea, Greta, Contanti)
+- **Movimenti**: storico di entrate/uscite con filtro per mese e per conto
+- **Categorie con icone**: griglia visuale (Casa, Auto, Spesa, Bollette, Mutuo…) personalizzabile
+- **Ripetizione**: operazioni settimanali, mensili o annuali; pagando una rata ricompare la successiva
+- **Resoconti**: entrate/uscite del mese, uscite per categoria, saldo previsto
+- **PWA installabile**: si aggiunge alla home e funziona **offline**
 - **Backup**: esporta/importa un file `.json` per spostare i dati tra cellulare e PC
 
-## Come usarla
+## Come vederla online (GitHub Pages)
 
-### Provala subito (in locale)
+Il repository include un workflow che pubblica l'app automaticamente. Per attivarlo una volta sola:
+
+1. Su GitHub apri **Settings → Pages**
+2. Alla voce **Build and deployment → Source** scegli **GitHub Actions**
+3. Attendi ~1 minuto: l'app sarà online a `https://<utente>.github.io/MONEY-PRO/`
+
+Da lì, sul telefono, **Condividi → Aggiungi a Home** per installarla come app.
+Ad ogni push sul branch di sviluppo l'app online si aggiorna da sola.
+
+## Provala in locale
+
 ```bash
-cd MONEY-PRO
 python3 -m http.server 8099
 # apri http://localhost:8099
 ```
 
-### Pubblicarla online (gratis, con GitHub Pages)
-1. Su GitHub: **Settings → Pages**
-2. Source: branch `main` (o quello attivo), cartella `/root`
-3. In pochi minuti l'app è online a un indirizzo tipo `https://<utente>.github.io/money-pro/`
-4. Aprila dal telefono e da **Condividi → Aggiungi a Home** per installarla
+## Spostare i dati tra dispositivi
 
-### Spostare i dati tra dispositivi
-Poiché i dati sono locali: **Impostazioni → Esporta backup** su un dispositivo,
-poi **Importa backup** sull'altro.
+I dati sono locali: **Altro → Esporta** su un dispositivo, poi **Importa** sull'altro.
 
-## Struttura del progetto
+## Struttura
 
 | File | Ruolo |
 |------|-------|
-| `index.html` | struttura dell'interfaccia |
-| `styles.css` | stile (tema chiaro/scuro automatico) |
-| `app.js` | logica: dati, calcoli, rendering |
-| `manifest.json` | configurazione PWA |
-| `sw.js` | service worker (offline) |
-| `icons/` | icone dell'app (SVG + PNG) |
-
-## Sviluppo da più dispositivi
-
-Il progetto vive su GitHub, quindi puoi iniziare dal cellulare e continuare dal PC
-(o viceversa): ogni modifica viene committata e pushata sul branch di lavoro.
+| `index.html` | struttura dell'interfaccia (5 schede) |
+| `styles.css` | stile scuro |
+| `app.js` | logica: conti, categorie, movimenti, operazioni programmate |
+| `manifest.json` / `sw.js` | configurazione PWA e supporto offline |
+| `icons/` | icone dell'app |
+| `.github/workflows/pages.yml` | pubblicazione automatica su GitHub Pages |
 
 ## Idee per il futuro
 
-- Grafici andamento mensile
-- Categorie con budget
-- Sincronizzazione cloud (per avere gli stessi dati su tutti i dispositivi)
+- Vista **calendario** mensile delle operazioni programmate
+- **Budget** per categoria
+- **Trasferimenti** tra conti
+- Sincronizzazione cloud (stessi dati su tutti i dispositivi)

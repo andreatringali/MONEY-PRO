@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#0f766e" />
-  <meta name="description" content="Money Pro - gestisci la tua cassa: entrate, uscite, rate fisse e mutui." />
+  <meta name="theme-color" content="#0d2129" />
+  <meta name="description" content="Money Pro - gestisci la tua cassa: conti, entrate, uscite, rate e operazioni programmate." />
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
@@ -12,79 +12,87 @@
   <title>Money Pro</title>
 </head>
 <body>
-  <header class="app-header">
-    <div class="brand">
-      <span class="brand-mark">€</span>
-      <span class="brand-name">Money Pro</span>
-    </div>
-    <div class="balance-hero">
-      <span class="balance-label">Saldo cassa</span>
-      <span id="hero-balance" class="balance-value">€ 0,00</span>
-    </div>
-  </header>
-
   <main id="app">
-    <!-- Riepilogo -->
-    <section id="tab-riepilogo" class="tab-panel active">
-      <div class="cards">
-        <div class="card income">
-          <span class="card-label">Entrate (mese)</span>
-          <span id="stat-income" class="card-value">€ 0,00</span>
+    <!-- OGGI -->
+    <section id="tab-oggi" class="tab-panel active">
+      <header class="page-head">
+        <div class="date-block">
+          <span class="date-day" id="today-num">11</span>
+          <span class="date-rest">
+            <span id="today-dow">Sabato</span>
+            <span id="today-my">Luglio 2026</span>
+          </span>
         </div>
-        <div class="card expense">
-          <span class="card-label">Uscite (mese)</span>
-          <span id="stat-expense" class="card-value">€ 0,00</span>
-        </div>
-        <div class="card commit">
-          <span class="card-label">Impegni fissi / mese</span>
-          <span id="stat-commit" class="card-value">€ 0,00</span>
-        </div>
-        <div class="card net">
-          <span class="card-label">Bilancio mese</span>
-          <span id="stat-net" class="card-value">€ 0,00</span>
-        </div>
+        <button class="head-add" data-add aria-label="Aggiungi">+</button>
+      </header>
+
+      <div class="hero-balance">
+        <span class="hero-label">Saldo attuale</span>
+        <span id="hero-balance" class="hero-value">€ 0,00</span>
+        <span id="hero-forecast" class="hero-forecast"></span>
       </div>
 
-      <div class="section-block">
-        <h2>Rate in scadenza</h2>
-        <div id="due-list" class="list"></div>
-      </div>
-
-      <div class="section-block">
-        <h2>Ultimi movimenti</h2>
-        <div id="recent-list" class="list"></div>
-      </div>
+      <div class="section-row"><h2>Previste</h2><span id="prev-total" class="section-side"></span></div>
+      <div id="planned-list" class="list"></div>
     </section>
 
-    <!-- Movimenti -->
+    <!-- BILANCIO -->
+    <section id="tab-bilancio" class="tab-panel">
+      <header class="page-head simple"><h1>Bilancio</h1><button class="head-add" data-add aria-label="Aggiungi">+</button></header>
+      <div class="net-strip">
+        <span class="net-label">Patrimonio netto</span>
+        <span id="net-worth" class="net-value">€ 0,00</span>
+      </div>
+      <div class="section-row"><h2>Conti</h2><span id="accounts-total" class="section-side"></span></div>
+      <div id="accounts-list" class="list"></div>
+      <button id="add-account" class="ghost-btn">+ Aggiungi conto</button>
+    </section>
+
+    <!-- MOVIMENTI -->
     <section id="tab-movimenti" class="tab-panel">
-      <div class="toolbar">
-        <h2>Movimenti</h2>
+      <header class="page-head simple"><h1>Movimenti</h1><button class="head-add" data-add aria-label="Aggiungi">+</button></header>
+      <div class="filters">
         <select id="filter-month" class="select-inline" aria-label="Filtra per mese"></select>
+        <select id="filter-account" class="select-inline" aria-label="Filtra per conto"></select>
       </div>
       <div id="movements-list" class="list"></div>
     </section>
 
-    <!-- Rate fisse -->
-    <section id="tab-rate" class="tab-panel">
-      <div class="toolbar">
-        <h2>Rate fisse e mutui</h2>
+    <!-- RESOCONTI -->
+    <section id="tab-resoconti" class="tab-panel">
+      <header class="page-head simple"><h1>Resoconti</h1></header>
+      <div class="report-card">
+        <h3>Entrate / Uscite <span id="report-month" class="muted"></span></h3>
+        <div class="io-bars">
+          <div class="io-row"><span>Entrate</span><div class="bar-track"><i id="bar-in"></i></div><b id="rep-in">€ 0</b></div>
+          <div class="io-row"><span>Uscite</span><div class="bar-track"><i id="bar-out" class="out"></i></div><b id="rep-out">€ 0</b></div>
+        </div>
+        <div class="io-net">Bilancio del mese: <b id="rep-net">€ 0</b></div>
       </div>
-      <div id="recurring-list" class="list"></div>
+      <div class="report-card">
+        <h3>Uscite per categoria</h3>
+        <div id="cat-breakdown" class="cat-breakdown"></div>
+      </div>
+      <div class="report-card">
+        <h3>Saldo previsto (30 giorni)</h3>
+        <div id="forecast-box" class="forecast-box"></div>
+      </div>
     </section>
 
-    <!-- Impostazioni -->
-    <section id="tab-impostazioni" class="tab-panel">
-      <h2>Impostazioni</h2>
+    <!-- ALTRO -->
+    <section id="tab-altro" class="tab-panel">
+      <header class="page-head simple"><h1>Altro</h1></header>
+      <div class="settings-block">
+        <h3>Categorie</h3>
+        <p class="muted">Gestisci le categorie con cui classifichi i movimenti.</p>
+        <button id="manage-cats" class="btn btn-secondary">Gestisci categorie</button>
+      </div>
       <div class="settings-block">
         <h3>Backup dei dati</h3>
-        <p class="muted">
-          I dati sono salvati solo su questo dispositivo. Esporta un file di backup
-          per spostarli su un altro dispositivo (es. dal cellulare al PC).
-        </p>
+        <p class="muted">I dati sono salvati solo su questo dispositivo. Esporta un file per spostarli su un altro dispositivo.</p>
         <div class="btn-row">
-          <button id="btn-export" class="btn btn-secondary">Esporta backup</button>
-          <button id="btn-import" class="btn btn-secondary">Importa backup</button>
+          <button id="btn-export" class="btn btn-secondary">Esporta</button>
+          <button id="btn-import" class="btn btn-secondary">Importa</button>
           <input id="import-file" type="file" accept="application/json" hidden />
         </div>
       </div>
@@ -96,84 +104,103 @@
     </section>
   </main>
 
-  <button id="fab" class="fab" aria-label="Aggiungi">+</button>
+  <button id="fab" class="fab" data-add aria-label="Aggiungi">+</button>
 
   <nav class="tabbar">
-    <button class="tab-btn active" data-tab="riepilogo">
-      <span class="tab-ico">◎</span><span>Riepilogo</span>
-    </button>
-    <button class="tab-btn" data-tab="movimenti">
-      <span class="tab-ico">⇅</span><span>Movimenti</span>
-    </button>
-    <button class="tab-btn" data-tab="rate">
-      <span class="tab-ico">◷</span><span>Rate</span>
-    </button>
-    <button class="tab-btn" data-tab="impostazioni">
-      <span class="tab-ico">⚙</span><span>Impostazioni</span>
-    </button>
+    <button class="tab-btn active" data-tab="oggi"><span class="tab-ico" data-i="today"></span><span>Oggi</span></button>
+    <button class="tab-btn" data-tab="bilancio"><span class="tab-ico" data-i="scale"></span><span>Bilancio</span></button>
+    <button class="tab-btn" data-tab="movimenti"><span class="tab-ico" data-i="swap"></span><span>Movimenti</span></button>
+    <button class="tab-btn" data-tab="resoconti"><span class="tab-ico" data-i="chart"></span><span>Resoconti</span></button>
+    <button class="tab-btn" data-tab="altro"><span class="tab-ico" data-i="dots"></span><span>Altro</span></button>
   </nav>
 
-  <!-- Modale: nuovo movimento / rata -->
+  <!-- MODALE MOVIMENTO -->
   <div id="modal" class="modal" hidden>
     <div class="modal-backdrop" data-close></div>
     <div class="modal-card">
       <div class="modal-head">
-        <h3 id="modal-title">Nuovo movimento</h3>
-        <button class="modal-close" data-close aria-label="Chiudi">×</button>
+        <button class="modal-cancel" data-close>Annulla</button>
+        <h3 id="modal-title">Nuovo</h3>
+        <button class="modal-save" id="modal-save">Salva</button>
       </div>
 
-      <div class="seg" id="seg-mode">
-        <button type="button" class="seg-btn active" data-mode="movimento">Movimento</button>
-        <button type="button" class="seg-btn" data-mode="rata">Rata fissa / Mutuo</button>
+      <div class="seg" id="seg-kind">
+        <button type="button" class="seg-btn active" data-kind="expense">Uscita</button>
+        <button type="button" class="seg-btn" data-kind="income">Entrata</button>
       </div>
 
       <form id="entry-form">
-        <div class="seg" id="seg-kind">
-          <button type="button" class="seg-btn active" data-kind="expense">Uscita</button>
-          <button type="button" class="seg-btn" data-kind="income">Entrata</button>
+        <div class="amount-input">
+          <span class="cur">€</span>
+          <input id="f-amount" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0,00" required />
         </div>
 
-        <label class="field">
-          <span>Importo (€)</span>
-          <input id="f-amount" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0,00" required />
-        </label>
+        <button type="button" id="pick-category" class="picker-row">
+          <span class="picker-ico" id="cat-ico"></span>
+          <span class="picker-main"><span class="picker-label">Categoria</span><span id="cat-name" class="picker-value">Scegli…</span></span>
+          <span class="picker-arrow">›</span>
+        </button>
+
+        <button type="button" id="pick-account" class="picker-row">
+          <span class="picker-ico" id="acc-ico"></span>
+          <span class="picker-main"><span class="picker-label">Conto</span><span id="acc-name" class="picker-value">—</span></span>
+          <span class="picker-arrow">›</span>
+        </button>
 
         <label class="field">
           <span>Descrizione</span>
-          <input id="f-desc" type="text" placeholder="Es. Spesa, Stipendio, Mutuo casa" required />
+          <input id="f-desc" type="text" placeholder="Es. Spesa Esselunga, Stipendio" />
         </label>
 
         <label class="field">
-          <span>Categoria</span>
-          <input id="f-cat" type="text" list="cat-list" placeholder="Es. Alimentari" />
-          <datalist id="cat-list"></datalist>
-        </label>
-
-        <!-- Campi solo movimento -->
-        <label class="field only-movimento">
           <span>Data</span>
           <input id="f-date" type="date" required />
         </label>
 
-        <!-- Campi solo rata -->
-        <label class="field only-rata" hidden>
-          <span>Giorno di addebito (1-28)</span>
-          <input id="f-day" type="number" min="1" max="28" step="1" placeholder="Es. 5" />
-        </label>
-        <label class="field only-rata" hidden>
-          <span>Prima scadenza</span>
-          <input id="f-start" type="month" />
-        </label>
-        <label class="field only-rata" hidden>
-          <span>Numero rate totali <em class="muted">(vuoto = a tempo indeterminato)</em></span>
-          <input id="f-months" type="number" min="1" step="1" placeholder="Es. 120 per un mutuo" />
-        </label>
-
-        <div class="btn-row">
-          <button type="button" class="btn btn-secondary" data-close>Annulla</button>
-          <button type="submit" class="btn btn-primary">Salva</button>
+        <div class="field">
+          <span>Ripeti</span>
+          <div class="chips" id="repeat-chips">
+            <button type="button" class="chip active" data-rep="none">Mai</button>
+            <button type="button" class="chip" data-rep="weekly">Settimana</button>
+            <button type="button" class="chip" data-rep="monthly">Mese</button>
+            <button type="button" class="chip" data-rep="yearly">Anno</button>
+          </div>
         </div>
+
+        <label class="switch-row">
+          <span>Da pagare (programmata)</span>
+          <input type="checkbox" id="f-planned" class="switch" />
+        </label>
+        <p class="muted small">Se attiva, la registri ora come "prevista" e la confermi con "Segna come pagata" quando la paghi davvero.</p>
+
+        <button type="button" id="delete-entry" class="btn btn-danger full" hidden>Elimina</button>
       </form>
+    </div>
+  </div>
+
+  <!-- MODALE CATEGORIE -->
+  <div id="cat-modal" class="modal" hidden>
+    <div class="modal-backdrop" data-close-cat></div>
+    <div class="modal-card">
+      <div class="modal-head">
+        <button class="modal-cancel" data-close-cat>Chiudi</button>
+        <h3 id="cat-modal-title">Categorie</h3>
+        <span style="width:56px"></span>
+      </div>
+      <div id="cat-grid" class="cat-grid"></div>
+    </div>
+  </div>
+
+  <!-- MODALE CONTI -->
+  <div id="acc-modal" class="modal" hidden>
+    <div class="modal-backdrop" data-close-acc></div>
+    <div class="modal-card">
+      <div class="modal-head">
+        <button class="modal-cancel" data-close-acc>Chiudi</button>
+        <h3>Scegli conto</h3>
+        <span style="width:56px"></span>
+      </div>
+      <div id="acc-picker-list" class="list"></div>
     </div>
   </div>
 
