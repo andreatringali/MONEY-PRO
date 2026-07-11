@@ -287,9 +287,9 @@
       const accs = data.accounts.filter((a) => g.types.includes(a.type || "payment"));
       if (!accs.length) continue;
       const sum = accs.reduce((s, a) => s + accountBalance(a.id), 0);
-      html += `<div class="acc-group">
-        <div class="acc-group-head"><span class="agh-label">${g.label}</span><span class="agh-sum">${money(sum)}</span></div>
-        <div class="list">` +
+      html += `<div class="card">
+        <div class="card-head"><h3>${g.label}</h3><span class="card-side">${money(sum)}</span></div>
+        <div class="list inset">` +
         accs.map((a) => {
           const b = accountBalance(a.id);
           const meta = ACCOUNT_TYPES[a.type] || ACCOUNT_TYPES.payment;

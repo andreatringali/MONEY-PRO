@@ -51,17 +51,25 @@
         </div>
       </div>
 
-      <div class="section-row"><h2>Obiettivi</h2><button id="add-goal" class="link-btn">Aggiungi</button></div>
-      <div id="goals-list" class="goals"></div>
+      <div class="card">
+        <div class="card-head"><h3>Obiettivi</h3><button id="add-goal" class="link-btn">Aggiungi</button></div>
+        <div id="goals-list" class="goals"></div>
+      </div>
 
-      <div class="section-row"><h2>In scadenza</h2><span id="prev-total" class="section-side"></span></div>
-      <div id="planned-list" class="list"></div>
+      <div class="card">
+        <div class="card-head"><h3>In scadenza</h3><span id="prev-total" class="card-side"></span></div>
+        <div id="planned-list" class="list inset"></div>
+      </div>
 
-      <div class="section-row"><h2>Conti</h2><span id="dash-networth" class="section-side"></span></div>
-      <div id="dash-accounts" class="list"></div>
+      <div class="card">
+        <div class="card-head"><h3>Conti</h3><span id="dash-networth" class="card-side"></span></div>
+        <div id="dash-accounts" class="list inset"></div>
+      </div>
 
-      <div class="section-row"><h2>Spese principali del mese</h2></div>
-      <div id="dash-topcat" class="cat-breakdown"></div>
+      <div class="card">
+        <div class="card-head"><h3>Spese principali del mese</h3></div>
+        <div id="dash-topcat" class="cat-breakdown"></div>
+      </div>
     </section>
 
     <!-- BILANCIO -->
@@ -82,7 +90,7 @@
         <select id="filter-month" class="select-inline" aria-label="Filtra per mese"></select>
         <select id="filter-account" class="select-inline" aria-label="Filtra per conto"></select>
       </div>
-      <div id="movements-list" class="list"></div>
+      <div class="card"><div id="movements-list" class="list inset"></div></div>
     </section>
 
     <!-- RESOCONTI -->
