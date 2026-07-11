@@ -129,6 +129,14 @@ main { max-width: 720px; margin: 0 auto; padding: 0 16px; }
 .row-sub { font-size: 12px; color: var(--muted); margin-top: 2px; display: flex; align-items: center; gap: 6px; }
 .row-sub.warn { color: var(--gold); }
 .warn-ico { display: inline-grid; place-items: center; width: 15px; height: 15px; border: 1.3px solid currentColor; border-radius: 50%; font-size: 10px; font-weight: 700; }
+/* Tag */
+.row-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+.tag-chip { border: none; background: var(--terra-soft); color: var(--terra); font-family: inherit; font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 999px; cursor: pointer; line-height: 1.5; }
+.tag-chip::before { content: "#"; opacity: .55; }
+.tag-suggest { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.tag-suggest:empty { display: none; }
+.tag-opt { border: 1px solid var(--line); background: var(--cream); color: var(--ink); font-family: inherit; font-size: 12.5px; font-weight: 600; padding: 5px 11px; border-radius: 999px; cursor: pointer; }
+.tag-opt::before { content: "#"; opacity: .5; }
 
 .amount-badge { font-weight: 700; font-size: 13px; padding: 5px 12px; border-radius: 999px; white-space: nowrap; }
 .amount-badge.plan-out { background: var(--terra-soft); color: var(--terra); }

@@ -414,7 +414,7 @@
       const q = searchQuery.toLowerCase();
       items = items.filter((t) => {
         const c = catById(t.categoryId), a = accById(t.accountId);
-        return [t.description, c && c.name, a && a.name, String(t.amount).replace(".", ",")]
+        return [t.description, c && c.name, a && a.name, String(t.amount).replace(".", ","), ...(t.tags || [])]
           .filter(Boolean).some((s) => String(s).toLowerCase().includes(q));
       });
     }
@@ -452,7 +452,8 @@
           return `<div class="row" data-edit="${t.id}">
             <div class="row-ico">${svg("swap")}</div>
             <div class="row-main"><div class="row-title">${esc(t.description || "Trasferimento")}</div>
-              <div class="row-sub">${t.time ? t.time + " · " : ""}${fa ? esc(fa.name) : "?"} → ${ta ? esc(ta.name) : "?"}</div></div>
+              <div class="row-sub">${t.time ? t.time + " · " : ""}${fa ? esc(fa.name) : "?"} → ${ta ? esc(ta.name) : "?"}</div>
+              ${tagChips(t.tags)}</div>
             <span class="amount-plain xfer">${money(t.amount)}</span>
           </div>`;
         }
@@ -461,7 +462,8 @@
         return `<div class="row" data-edit="${t.id}">
           <div class="row-ico">${svg(c ? c.icon : "tag")}</div>
           <div class="row-main"><div class="row-title">${esc(t.description || (c ? c.name : "Movimento"))}</div>
-            <div class="row-sub">${t.time ? t.time + " · " : ""}${a ? esc(a.name) : ""}${c ? " · " + esc(c.name) : ""}</div></div>
+            <div class="row-sub">${t.time ? t.time + " · " : ""}${a ? esc(a.name) : ""}${c ? " · " + esc(c.name) : ""}</div>
+            ${tagChips(t.tags)}</div>
           <span class="amount-plain ${t.kind === "income" ? "in" : "out"}">${sign}${money(t.amount)}</span>
         </div>`;
       }).join("");
@@ -664,6 +666,44 @@
   }
 
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+  // Tag: normalizza una stringa "a, b, c" in un array pulito e senza duplicati
+  function parseTags(str) {
+    const seen = new Set(); const out = [];
+    String(str || "").split(",").forEach((raw) => {
+      const t = raw.trim().replace(/^#/, "");
+      if (t && !seen.has(t.toLowerCase())) { seen.add(t.toLowerCase()); out.push(t); }
+    });
+    return out;
+  }
+  // Tutti i tag già usati, per i suggerimenti
+  function allTags() {
+    const set = new Map(); // chiave lowercase -> forma originale
+    for (const t of data.transactions) for (const g of (t.tags || [])) if (!set.has(g.toLowerCase())) set.set(g.toLowerCase(), g);
+    return Array.from(set.values()).sort((a, b) => a.localeCompare(b, "it"));
+  }
+  function tagChips(tags) {
+    if (!tags || !tags.length) return "";
+    return `<span class="row-tags">${tags.map((g) => `<button type="button" class="tag-chip" data-tag="${esc(g)}">${esc(g)}</button>`).join("")}</span>`;
+  }
+  // Suggerimenti tag nel modale: mostra i tag già usati che combaciano con l'ultimo digitato
+  function renderTagSuggest() {
+    const box = $("#tag-suggest"); if (!box) return;
+    const val = $("#f-tags").value;
+    const already = parseTags(val).map((t) => t.toLowerCase());
+    const partial = (val.split(",").pop() || "").trim().toLowerCase();
+    let opts = allTags().filter((g) => !already.includes(g.toLowerCase()) || g.toLowerCase() === partial);
+    if (partial) opts = opts.filter((g) => g.toLowerCase().includes(partial) && g.toLowerCase() !== partial);
+    else opts = opts.filter((g) => !already.includes(g.toLowerCase()));
+    opts = opts.slice(0, 8);
+    box.innerHTML = opts.map((g) => `<button type="button" class="tag-opt" data-tag-add="${esc(g)}">${esc(g)}</button>`).join("");
+  }
+  function addTagFromSuggest(tag) {
+    const parts = $("#f-tags").value.split(",");
+    parts[parts.length - 1] = " " + tag; // sostituisce l'ultimo (parziale) col tag completo
+    $("#f-tags").value = parseTags(parts.join(",")).join(", ") + ", ";
+    $("#f-tags").focus();
+    renderTagSuggest();
+  }
   function toast(msg) { const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(() => (t.hidden = true), 2200); }
 
   // ---------- Modale movimento ----------
@@ -680,6 +720,7 @@
       form.toAccountId = editTx.toAccountId || null; form.repeat = editTx.repeat || "none";
       $("#f-amount").value = editTx.amount;
       $("#f-desc").value = editTx.description || "";
+      $("#f-tags").value = (editTx.tags || []).join(", ");
       $("#f-date").value = editTx.date;
       $("#f-time").value = editTx.time || "";
       $("#f-planned").checked = !!editTx.planned;
@@ -696,6 +737,7 @@
       $("#modal-title").textContent = "Nuovo";
       $("#delete-entry").hidden = true;
     }
+    $("#tag-suggest").innerHTML = "";
     syncKind(); syncRepeat(); syncPickers();
   }
   function closeModal() { modal.hidden = true; }
@@ -734,7 +776,7 @@
         amount, description: $("#f-desc").value.trim(),
         date: $("#f-date").value || todayIso(), time: $("#f-time").value || "",
         planned: false, repeat: "none", auto: false,
-        accountId: null, categoryId: null,
+        accountId: null, categoryId: null, tags: parseTags($("#f-tags").value),
       };
     } else {
       if (!form.categoryId) { toast("Scegli una categoria"); return; }
@@ -746,6 +788,7 @@
         amount, description: $("#f-desc").value.trim(),
         date: $("#f-date").value || todayIso(), time: $("#f-time").value || "",
         planned, repeat: form.repeat, auto, fromAccountId: null, toAccountId: null,
+        tags: parseTags($("#f-tags").value),
       };
     }
     // salva come preferito (solo movimenti, non trasferimenti)
@@ -791,7 +834,7 @@
         amount: t.amount, description: t.description, date: addInterval(schedDate, t.repeat),
         time: t.time || "", planned: true, repeat: t.repeat, auto: t.auto,
         fromAccountId: t.fromAccountId || null, toAccountId: t.toAccountId || null,
-        loanId: null, groupId: t.groupId || t.id,
+        loanId: null, groupId: t.groupId || t.id, tags: (t.tags || []).slice(),
       });
     }
     t.planned = false;
@@ -1378,7 +1421,7 @@
     const rows = data.transactions.filter((t) => !t.planned)
       .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
     if (!rows.length) { toast("Nessun movimento da esportare"); return; }
-    const head = ["Data", "Ora", "Tipo", "Categoria", "Conto", "Descrizione", "Importo"];
+    const head = ["Data", "Ora", "Tipo", "Categoria", "Conto", "Descrizione", "Tag", "Importo"];
     const lines = [head.join(";")];
     for (const t of rows) {
       let tipo, conto, importo;
@@ -1395,7 +1438,7 @@
       }
       const c = catById(t.categoryId);
       const val = String(importo.toFixed(2)).replace(".", ","); // formato numerico italiano
-      lines.push([t.date, t.time || "", tipo, c ? c.name : "", conto, t.description || "", val].map(csvCell).join(";"));
+      lines.push([t.date, t.time || "", tipo, c ? c.name : "", conto, t.description || "", (t.tags || []).join(" "), val].map(csvCell).join(";"));
     }
     // BOM per far riconoscere l'UTF-8 a Excel
     const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
@@ -1477,6 +1520,17 @@
 
       const pay = e.target.closest("[data-pay]");
       if (pay) { e.stopPropagation(); payPlanned(pay.dataset.pay); return; }
+
+      // clic su un tag in un movimento: filtra i movimenti per quel tag
+      const tagChip = e.target.closest(".tag-chip[data-tag]");
+      if (tagChip) {
+        e.stopPropagation();
+        searchQuery = tagChip.dataset.tag;
+        const si = $("#search-input"); if (si) si.value = searchQuery;
+        const t = $(`.tab-btn[data-tab="movimenti"]`); if (t && !$("#tab-movimenti").classList.contains("active")) t.click();
+        renderMovimenti();
+        return;
+      }
 
       const edit = e.target.closest("[data-edit]");
       if (edit) { const t = data.transactions.find((x) => x.id === edit.dataset.edit); if (t) openModal(t); return; }
@@ -1586,6 +1640,12 @@
     $("#filter-month").addEventListener("change", renderMovimenti);
     $("#filter-account").addEventListener("change", renderMovimenti);
     $("#search-input").addEventListener("input", (e) => { searchQuery = e.target.value.trim(); renderMovimenti(); });
+    $("#f-tags").addEventListener("input", renderTagSuggest);
+    $("#f-tags").addEventListener("focus", renderTagSuggest);
+    $("#tag-suggest").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-tag-add]");
+      if (b) addTagFromSuggest(b.dataset.tagAdd);
+    });
     $$("#mov-view .seg-btn").forEach((btn) => btn.addEventListener("click", () => {
       movView = btn.dataset.view;
       $$("#mov-view .seg-btn").forEach((b) => b.classList.toggle("active", b === btn));
