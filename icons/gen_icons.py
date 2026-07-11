@@ -3,9 +3,9 @@
 Encoder PNG in puro Python, senza dipendenze."""
 import struct, zlib, math
 
-TOP = (0x14, 0xb8, 0xa6)   # #14b8a6
-BOT = (0x0f, 0x76, 0x6e)   # #0f766e
-WHITE = (255, 255, 255)
+TOP = (0xC0, 0x66, 0x4C)   # terracotta chiaro
+BOT = (0xA9, 0x4E, 0x37)   # terracotta scuro
+WHITE = (0xF5, 0xF1, 0xE8)  # crema (per il simbolo)
 
 
 def lerp(a, b, t):
