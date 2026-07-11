@@ -1,9 +1,9 @@
 :root {
   --bg-top: #17323b;
   --bg-bot: #0c1e25;
-  --panel: rgba(255, 255, 255, .04);
-  --panel-solid: #142b33;
-  --line: rgba(255, 255, 255, .09);
+  --panel: #142832;          /* sfondo scheda: colore pieno, sempre visibile */
+  --panel-solid: #17303a;
+  --line: rgba(255, 255, 255, .14);
   --text: #eaf2f4;
   --muted: #8ba3ab;
   --accent: #2dd4bf;
