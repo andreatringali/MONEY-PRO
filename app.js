@@ -594,6 +594,51 @@
       `Saldo previsto: <b>${money(f.future)}</b>`;
 
     renderBudget(pk, byCat);
+    renderStats(pk);
+  }
+
+  // ---------- Statistiche & confronti ----------
+  function renderStats(pk) {
+    const periods = Array.from(new Set(
+      data.transactions.filter((t) => !t.planned).map((t) => periodKey(t.date))
+    )).sort();
+    const prevKey = shiftMonth(pk, -1);
+    const cur = monthTotals(pk), prev = monthTotals(prevKey);
+    $("#stats-cur-label").textContent = "(" + cap(periodLabel(pk)) + ")";
+
+    // Confronto mese vs mese scorso
+    const cmpRow = (label, a, b, goodUp) => {
+      const delta = a - b;
+      const pct = b !== 0 ? Math.round(Math.abs(delta) / Math.abs(b) * 100) : null;
+      const arrow = delta === 0 ? "→" : delta > 0 ? "↑" : "↓";
+      const good = delta === 0 ? "" : (goodUp ? delta > 0 : delta < 0) ? "stat-good" : "stat-bad";
+      const deltaTxt = delta === 0
+        ? "invariato"
+        : `${arrow} ${money0(Math.abs(delta))}${pct !== null ? " · " + pct + "%" : ""}`;
+      return `<div class="stat-row">
+        <span class="stat-name">${label}</span>
+        <b class="stat-val">${money0(a)}</b>
+        <span class="stat-delta ${good}">${deltaTxt}</span></div>`;
+    };
+    const hasPrev = prev.income || prev.expense;
+    $("#stats-compare").innerHTML =
+      cmpRow("Entrate", cur.income, prev.income, true) +
+      cmpRow("Uscite", cur.expense, prev.expense, false) +
+      cmpRow("Bilancio", cur.income - cur.expense, prev.income - prev.expense, true) +
+      (hasPrev ? "" : `<div class="stat-note">Nessun dato per ${cap(periodLabel(prevKey))}: il confronto sarà più utile con più mesi registrati.</div>`);
+
+    // Medie mensili su tutti i mesi con movimenti
+    let ti = 0, te = 0;
+    periods.forEach((p) => { const m = monthTotals(p); ti += m.income; te += m.expense; });
+    const n = periods.length || 1;
+    const mIn = ti / n, mOut = te / n, mSave = mIn - mOut;
+    $("#stats-avg-note").textContent = periods.length
+      ? "(su " + periods.length + (periods.length === 1 ? " mese" : " mesi") + ")" : "";
+    $("#stats-averages").innerHTML = periods.length ? `
+      <div class="stat-avg"><span>Entrate medie</span><b class="stat-good">${money0(mIn)}</b></div>
+      <div class="stat-avg"><span>Uscite medie</span><b class="stat-bad">${money0(mOut)}</b></div>
+      <div class="stat-avg"><span>Risparmio medio</span><b class="${mSave >= 0 ? "stat-good" : "stat-bad"}">${money0(mSave)}</b></div>`
+      : `<div class="empty">Aggiungi qualche movimento per vedere le medie.</div>`;
   }
 
   function renderBudget(pk, spentByCat) {
