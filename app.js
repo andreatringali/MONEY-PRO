@@ -424,9 +424,17 @@
       ? `<div class="day-filter-bar"><span>Giorno: <b>${cap(fmtDayLong(selectedDay))}</b></span><button data-clear-day>Mostra tutti</button></div>`
       : "";
 
-    if (movView === "ledger") { renderLedger(items, fa, dayBar); return; }
+    // Quando è selezionato un giorno, mostra anche le operazioni PROGRAMMATE di quel giorno
+    // (es. la rata di un finanziamento), così cliccando sul calendario si vede la spesa prevista.
+    const plannedBlock = selectedDay ? plannedDayBlock(selectedDay) : "";
 
-    if (!items.length) { box.innerHTML = dayBar + `<div class="empty">Nessun movimento in questo ${selectedDay ? "giorno" : "periodo"}.</div>`; return; }
+    if (movView === "ledger") { renderLedger(items, fa, dayBar, plannedBlock); return; }
+
+    if (!items.length) {
+      box.innerHTML = dayBar + plannedBlock +
+        (plannedBlock ? "" : `<div class="empty">Nessun movimento in questo ${selectedDay ? "giorno" : "periodo"}.</div>`);
+      return;
+    }
 
     // Raggruppa per giorno
     const days = [];
@@ -463,8 +471,38 @@
         <div class="list inset">${rows}</div>
       </div>`;
     }).join("");
-    box.innerHTML = dayBar + box.innerHTML;
+    box.innerHTML = dayBar + plannedBlock + box.innerHTML;
   }
+
+  // Card con le operazioni programmate (previste) di un giorno specifico.
+  function plannedDayBlock(iso) {
+    const items = data.transactions.filter((t) => t.planned && t.date === iso);
+    if (!items.length) return "";
+    const today = todayIso();
+    const rows = items.map((t) => {
+      const c = catById(t.categoryId);
+      const overdue = t.date < today;
+      const badgeClass = t.kind === "income" ? "plan-in" : "plan-out";
+      const sign = t.kind === "income" ? "+" : "";
+      const a = accById(t.accountId);
+      return `<div class="row" data-edit="${t.id}">
+        <div class="row-ico">${svg(c ? c.icon : "tag")}</div>
+        <div class="row-main">
+          <div class="row-title">${esc(t.description || (c ? c.name : "Operazione"))}</div>
+          <div class="row-sub ${overdue ? "warn" : ""}">
+            ${overdue ? '<span class="warn-ico">!</span> Scaduta · ' : ""}Prevista${a ? " · " + esc(a.name) : ""}${t.repeat !== "none" ? " · ripete" : ""}${t.auto ? ' · <span class="pill auto">auto</span>' : ""}
+          </div>
+        </div>
+        <span class="amount-badge ${badgeClass}">${sign}${money0(t.amount)}</span>
+        <button class="pay-btn" data-pay="${t.id}">Paga</button>
+      </div>`;
+    }).join("");
+    return `<div class="card">
+      <div class="card-head"><h3>Previste</h3><span class="card-side">${items.length} ${items.length === 1 ? "voce" : "voci"}</span></div>
+      <div class="list inset">${rows}</div>
+    </div>`;
+  }
+
   function fmtDayLong(iso) {
     const d = parseIso(iso);
     return d.toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "long" });
@@ -487,14 +525,19 @@
     }
     return map;
   }
-  function renderLedger(items, fa, dayBar) {
+  function renderLedger(items, fa, dayBar, plannedBlock) {
+    plannedBlock = plannedBlock || "";
     const box = $("#movements-list");
     const scope = fa === "all" ? "all" : fa;
     const map = ledgerBalances(scope);
     const rows = items.filter((t) => map[t.id]); // esclude i trasferimenti nel totale
-    if (!rows.length) { box.innerHTML = dayBar + `<div class="empty">Nessun movimento da mostrare.</div>`; return; }
+    if (!rows.length) {
+      box.innerHTML = dayBar + plannedBlock +
+        (plannedBlock ? "" : `<div class="empty">Nessun movimento da mostrare.</div>`);
+      return;
+    }
     const scopeLabel = scope === "all" ? "Totale conti" : (accById(scope) ? accById(scope).name : "");
-    let html = dayBar + `<div class="card ledger-card">
+    let html = `<div class="card ledger-card">
       <div class="card-head"><h3>Prima nota</h3><span class="card-side">${esc(scopeLabel)}</span></div>
       <div class="ledger-start">Saldo iniziale: <b>${money(scope === "all" ? data.accounts.reduce((s, a) => s + (a.opening || 0), 0) : (accById(scope) ? accById(scope).opening || 0 : 0))}</b></div>`;
     html += rows.map((t) => {
@@ -515,7 +558,7 @@
       </div>`;
     }).join("");
     html += `</div>`;
-    box.innerHTML = html;
+    box.innerHTML = dayBar + plannedBlock + html;
   }
 
   function renderResoconti() {
