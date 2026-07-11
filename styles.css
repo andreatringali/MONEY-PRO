@@ -160,6 +160,26 @@ main { max-width: 720px; margin: 0 auto; padding: 0 16px; }
 .day-filter-bar { display: flex; align-items: center; justify-content: space-between; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 11px 16px; margin-bottom: 12px; font-size: 13px; box-shadow: 0 3px 14px rgba(80,60,40,.05); }
 .day-filter-bar button { border: none; background: var(--terra); color: #fff; font-weight: 700; border-radius: 999px; padding: 6px 14px; font-size: 12px; cursor: pointer; font-family: inherit; }
 
+/* Ricerca */
+.search-input { width: 100%; border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 14px; padding: 12px 16px; font-size: 15px; font-family: inherit; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(80,60,40,.04); }
+.search-input:focus { outline: 2px solid var(--terra); border-color: transparent; }
+
+/* Preferiti (inserimento veloce) */
+.fav-row { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 12px; -webkit-overflow-scrolling: touch; }
+.fav-row:empty { display: none; }
+.fav-chip { flex-shrink: 0; display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px 8px 10px; cursor: pointer; font-family: inherit; box-shadow: 0 2px 8px rgba(80,60,40,.05); }
+.fav-chip .fc-ico { width: 20px; height: 20px; color: var(--terra); flex-shrink: 0; }
+.fav-chip .fc-txt { font-size: 13px; font-weight: 700; color: var(--ink); white-space: nowrap; }
+.fav-chip .fc-amt { font-size: 12.5px; font-weight: 700; }
+.fav-chip .fc-amt.in { color: var(--income); }
+.fav-chip .fc-amt.out { color: var(--expense); }
+.fav-chip.add { color: var(--terra); font-weight: 700; font-size: 13px; padding: 8px 16px; border-style: dashed; }
+
+/* Grafico andamento saldo */
+.trend { width: 100%; }
+.trend svg { width: 100%; height: auto; display: block; }
+.trend-legend { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 6px; }
+
 /* Filters */
 .filters { display: flex; gap: 10px; margin: 4px 0 12px; }
 .select-inline { flex: 1; border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 12px; padding: 11px 12px; font-size: 14px; font-family: inherit; }
@@ -228,6 +248,19 @@ main { max-width: 720px; margin: 0 auto; padding: 0 16px; }
 .loan-foot .done { color: var(--income); font-weight: 700; }
 .loan-pay { border: none; background: var(--terra); color: #fff; font-weight: 700; padding: 7px 14px; border-radius: 999px; font-size: 12.5px; cursor: pointer; flex-shrink: 0; font-family: inherit; }
 .loans-empty { text-align: center; color: var(--muted); font-size: 13px; padding: 8px 12px 14px; }
+
+/* Gestione preferiti */
+.fav-manage { display: flex; flex-direction: column; gap: 8px; }
+.fav-manage-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.fav-manage-item:last-child { border-bottom: none; }
+.fav-manage-item .fmi-ico { width: 22px; height: 22px; color: var(--terra); flex-shrink: 0; }
+.fav-manage-item .fmi-name { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.fav-manage-item .fmi-amt { font-size: 13px; font-weight: 700; }
+.fav-manage-item .fmi-amt.in { color: var(--income); }
+.fav-manage-item .fmi-amt.out { color: var(--expense); }
+.fav-manage-item .fmi-del { border: none; background: transparent; color: var(--muted); font-size: 18px; cursor: pointer; padding: 4px 6px; }
+.fav-manage-empty { color: var(--muted); font-size: 13px; }
+.backup-warn { color: var(--expense) !important; font-weight: 700; }
 
 /* Settings */
 .settings-block { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 14px; box-shadow: 0 3px 14px rgba(80,60,40,.05); }

@@ -57,7 +57,8 @@
       transactions: [],
       goals: [],
       loans: [],
-      settings: { pin: null, reminders: false },
+      favorites: [],
+      settings: { pin: null, reminders: false, lastBackup: null },
     };
   }
   function defaultCategories() {
@@ -204,8 +205,12 @@
     renderCalendar();
     renderBilancio();
     renderLoans();
+    renderFavorites();
+    renderFavManage();
     renderMovimenti();
     renderResoconti();
+    renderTrend();
+    renderBackupStatus();
     save();
   }
 
@@ -361,9 +366,10 @@
     return g.source === "total" || !accById(g.source) ? netWorth() : accountBalance(g.source);
   }
 
-  // ---------- Calendario ----------
+  // ---------- Calendario / ricerca ----------
   let calMonth = currentPeriod();  // 'YYYY-MM'
   let selectedDay = null;          // 'YYYY-MM-DD' o null
+  let searchQuery = "";
 
   function renderCalendar() {
     const [y, m] = calMonth.split("-").map(Number);
@@ -403,6 +409,14 @@
     if (fm !== "all") items = items.filter((t) => periodKey(t.date) === fm);
     if (fa !== "all") items = items.filter((t) => t.accountId === fa || t.fromAccountId === fa || t.toAccountId === fa);
     if (selectedDay) items = items.filter((t) => t.date === selectedDay);
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      items = items.filter((t) => {
+        const c = catById(t.categoryId), a = accById(t.accountId);
+        return [t.description, c && c.name, a && a.name, String(t.amount).replace(".", ",")]
+          .filter(Boolean).some((s) => String(s).toLowerCase().includes(q));
+      });
+    }
 
     const box = $("#movements-list");
     const dayBar = selectedDay
@@ -593,6 +607,11 @@
         date: $("#f-date").value || todayIso(), time: $("#f-time").value || "",
         planned, repeat: form.repeat, auto, fromAccountId: null, toAccountId: null,
       };
+    }
+    // salva come preferito (solo movimenti, non trasferimenti)
+    if (form.kind !== "transfer" && $("#f-fav").checked) {
+      if (!data.favorites) data.favorites = [];
+      data.favorites.push({ id: "fav_" + uid(), kind: form.kind, amount, description: payload.description, categoryId: form.categoryId, accountId: form.accountId });
     }
     if (editingId) {
       const t = data.transactions.find((x) => x.id === editingId);
@@ -926,13 +945,113 @@
     save(); render(); closeBudgetEditor(); toast("Budget salvato");
   }
 
+  // ---------- Preferiti (inserimento veloce) ----------
+  function renderFavorites() {
+    const row = $("#fav-row");
+    const favs = data.favorites || [];
+    row.innerHTML = favs.map((f) => {
+      const c = catById(f.categoryId);
+      const sign = f.kind === "income" ? "+" : "−";
+      return `<button class="fav-chip" data-fav="${f.id}">
+        <span class="fc-ico">${svg(c ? c.icon : "tag")}</span>
+        <span class="fc-txt">${esc(f.description || (c ? c.name : "Movimento"))}</span>
+        <span class="fc-amt ${f.kind === "income" ? "in" : "out"}">${sign}${money(f.amount)}</span>
+      </button>`;
+    }).join("") + `<button class="fav-chip add" data-fav-add>+ Preferito</button>`;
+  }
+  function renderFavManage() {
+    const box = $("#fav-manage");
+    const favs = data.favorites || [];
+    if (!favs.length) { box.innerHTML = `<div class="fav-manage-empty">Nessun preferito. Creane uno attivando "Salva come preferito" quando aggiungi un movimento.</div>`; return; }
+    box.innerHTML = favs.map((f) => {
+      const c = catById(f.categoryId);
+      const sign = f.kind === "income" ? "+" : "−";
+      return `<div class="fav-manage-item">
+        <span class="fmi-ico">${svg(c ? c.icon : "tag")}</span>
+        <span class="fmi-name">${esc(f.description || (c ? c.name : "Movimento"))}</span>
+        <span class="fmi-amt ${f.kind === "income" ? "in" : "out"}">${sign}${money(f.amount)}</span>
+        <button class="fmi-del" data-fav-del="${f.id}" aria-label="Elimina">×</button>
+      </div>`;
+    }).join("");
+  }
+  function quickAddFavorite(id) {
+    const f = (data.favorites || []).find((x) => x.id === id);
+    if (!f) return;
+    data.transactions.push({
+      id: uid(), accountId: f.accountId, categoryId: f.categoryId, kind: f.kind,
+      amount: f.amount, description: f.description || "", date: todayIso(), time: "",
+      planned: false, repeat: "none", auto: false, fromAccountId: null, toAccountId: null, groupId: null,
+    });
+    save(); render(); toast("Aggiunto: " + (f.description || money0(f.amount)));
+  }
+
+  // ---------- Andamento del saldo ----------
+  function totalAsOf(endIso) {
+    let bal = data.accounts.reduce((s, a) => s + (a.opening || 0), 0);
+    for (const t of data.transactions) {
+      if (t.planned || t.date > endIso) continue;
+      if (t.kind === "income") bal += t.amount;
+      else if (t.kind === "expense") bal -= t.amount;
+    }
+    return bal;
+  }
+  function renderTrend() {
+    const box = $("#trend-chart");
+    const now = new Date();
+    const pts = [];
+    for (let i = 5; i >= 0; i--) {
+      const base = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const end = i === 0 ? now : new Date(base.getFullYear(), base.getMonth() + 1, 0);
+      pts.push({ label: cap(base.toLocaleDateString("it-IT", { month: "short" })), value: totalAsOf(isoOf(end)) });
+    }
+    const vals = pts.map((p) => p.value);
+    const min = Math.min(...vals), max = Math.max(...vals), range = (max - min) || 1;
+    const W = 320, H = 130, padX = 12, padTop = 18, padBot = 24, n = pts.length;
+    const X = (i) => padX + i * ((W - 2 * padX) / (n - 1));
+    const Y = (v) => padTop + (1 - (v - min) / range) * (H - padTop - padBot);
+    const line = pts.map((p, i) => `${X(i).toFixed(1)},${Y(p.value).toFixed(1)}`).join(" ");
+    const area = `M${X(0).toFixed(1)},${(H - padBot).toFixed(1)} L` + pts.map((p, i) => `${X(i).toFixed(1)},${Y(p.value).toFixed(1)}`).join(" L") + ` L${X(n - 1).toFixed(1)},${(H - padBot).toFixed(1)} Z`;
+    const last = pts[n - 1];
+    const labels = pts.map((p, i) => `<text x="${X(i).toFixed(1)}" y="${H - 8}" font-size="9" fill="#8C867A" text-anchor="middle">${p.label}</text>`).join("");
+    const dots = pts.map((p, i) => `<circle cx="${X(i).toFixed(1)}" cy="${Y(p.value).toFixed(1)}" r="${i === n - 1 ? 4 : 2.5}" fill="#B4573F"/>`).join("");
+    box.className = "trend";
+    box.innerHTML = `
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
+        <path d="${area}" fill="#B4573F" fill-opacity="0.10"/>
+        <polyline points="${line}" fill="none" stroke="#B4573F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        ${dots}
+        <text x="${X(n - 1).toFixed(1)}" y="${(Y(last.value) - 8).toFixed(1)}" font-size="11" font-weight="700" fill="#2C2A26" text-anchor="end">${money0(last.value)}</text>
+        ${labels}
+      </svg>
+      <div class="trend-legend"><span>${pts[0].label}: ${money0(pts[0].value)}</span><span>oggi: ${money0(last.value)}</span></div>`;
+  }
+
+  // ---------- Sicurezza dati ----------
+  function renderBackupStatus() {
+    const el = $("#backup-status"); if (!el) return;
+    const lb = settings().lastBackup;
+    if (!lb) { el.textContent = "Nessun backup ancora fatto."; el.classList.toggle("backup-warn", (data.transactions || []).length > 0); return; }
+    const days = Math.floor((parseIso(todayIso()) - parseIso(lb)) / 86400000);
+    el.textContent = "Ultimo backup: " + (days === 0 ? "oggi" : days === 1 ? "ieri" : days + " giorni fa");
+    el.classList.toggle("backup-warn", days >= 14);
+  }
+  function backupReminderOnOpen() {
+    const lb = settings().lastBackup;
+    const days = lb ? Math.floor((parseIso(todayIso()) - parseIso(lb)) / 86400000) : 999;
+    if ((data.transactions || []).length >= 3 && days >= 14) {
+      setTimeout(() => toast("💡 Fai un backup: Altro → Esporta"), 900);
+    }
+  }
+
   // ---------- Backup ----------
   function exportData() {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url;
-    a.download = `money-pro-backup-${todayIso()}.json`; a.click();
-    URL.revokeObjectURL(url); toast("Backup esportato");
+    a.download = `tasca-backup-${todayIso()}.json`; a.click();
+    URL.revokeObjectURL(url);
+    settings().lastBackup = todayIso(); save(); renderBackupStatus();
+    toast("Backup esportato");
   }
   function importData(file) {
     const r = new FileReader();
@@ -974,6 +1093,12 @@
 
       const goalEdit = e.target.closest("[data-goal-edit]");
       if (goalEdit) { openGoalEditor((data.goals || []).find((g) => g.id === goalEdit.dataset.goalEdit)); return; }
+
+      const favBtn = e.target.closest("[data-fav]");
+      if (favBtn) { quickAddFavorite(favBtn.dataset.fav); return; }
+      if (e.target.closest("[data-fav-add]")) { openModal(null); $("#f-fav").checked = true; return; }
+      const favDel = e.target.closest("[data-fav-del]");
+      if (favDel) { data.favorites = (data.favorites || []).filter((f) => f.id !== favDel.dataset.favDel); save(); render(); toast("Preferito eliminato"); return; }
 
       const payLoan = e.target.closest("[data-payloan]");
       if (payLoan) { e.stopPropagation(); payLoanRata(payLoan.dataset.payloan); return; }
@@ -1063,12 +1188,15 @@
     $("#manage-cats").addEventListener("click", () => openCatPicker("manage"));
     $("#filter-month").addEventListener("change", renderMovimenti);
     $("#filter-account").addEventListener("change", renderMovimenti);
+    $("#search-input").addEventListener("input", (e) => { searchQuery = e.target.value.trim(); renderMovimenti(); });
 
     $("#btn-export").addEventListener("click", exportData);
     $("#btn-import").addEventListener("click", () => $("#import-file").click());
     $("#import-file").addEventListener("change", (e) => { if (e.target.files[0]) importData(e.target.files[0]); e.target.value = ""; });
     $("#btn-reset").addEventListener("click", () => {
-      if (confirm("Cancellare TUTTI i dati? Irreversibile.")) { data = defaultData(); render(); toast("Dati cancellati"); }
+      if ((data.transactions || []).length && settings().lastBackup == null && !confirm("Non hai mai fatto un backup: cancellando perdi tutto. Continuare comunque?")) return;
+      const ans = prompt('Per cancellare TUTTI i dati scrivi CANCELLA:');
+      if (ans && ans.trim().toUpperCase() === "CANCELLA") { data = defaultData(); render(); toast("Dati cancellati"); }
     });
   }
 
@@ -1183,4 +1311,5 @@
   syncReminderButton();
   if (settings().pin) showLock();
   notifyDue();
+  backupReminderOnOpen();
 })();

@@ -88,6 +88,8 @@
     <!-- MOVIMENTI -->
     <section id="tab-movimenti" class="tab-panel">
       <header class="page-head simple"><h1>Giornaliero</h1><button class="head-add" data-add aria-label="Aggiungi">+</button></header>
+      <div id="fav-row" class="fav-row"></div>
+      <input id="search-input" class="search-input" type="search" placeholder="🔍  Cerca movimenti…" />
       <div class="card" id="scadenze-card">
         <div class="card-head"><h3>In scadenza</h3><span id="prev-total" class="card-side"></span></div>
         <div id="planned-list" class="list inset"></div>
@@ -127,6 +129,10 @@
       </div>
 
       <div class="report-card">
+        <h3>Andamento del saldo</h3>
+        <div id="trend-chart"></div>
+      </div>
+      <div class="report-card">
         <h3>Uscite per categoria</h3>
         <div id="cat-breakdown" class="cat-breakdown"></div>
       </div>
@@ -158,13 +164,19 @@
         <button id="manage-cats" class="btn btn-secondary">Gestisci categorie</button>
       </div>
       <div class="settings-block">
+        <h3>Inserimento veloce</h3>
+        <p class="muted">Pulsanti rapidi che trovi nel Giornaliero.</p>
+        <div id="fav-manage" class="fav-manage"></div>
+      </div>
+      <div class="settings-block">
         <h3>Backup dei dati</h3>
-        <p class="muted">I dati sono salvati solo su questo dispositivo. Esporta un file per spostarli su un altro dispositivo.</p>
+        <p class="muted">I dati sono salvati solo su questo dispositivo. Esporta un file per non perderli.</p>
         <div class="btn-row">
           <button id="btn-export" class="btn btn-secondary">Esporta</button>
           <button id="btn-import" class="btn btn-secondary">Importa</button>
           <input id="import-file" type="file" accept="application/json" hidden />
         </div>
+        <p id="backup-status" class="muted" style="margin-top:12px"></p>
       </div>
       <div class="settings-block danger">
         <h3>Zona pericolosa</h3>
@@ -262,6 +274,12 @@
           <input type="checkbox" id="f-auto" class="switch" />
         </label>
         <p class="muted small">Se attiva, alla scadenza viene registrata da sola, senza doverla confermare.</p>
+
+        <label class="switch-row" id="fav-toggle-row">
+          <span>⭐ Salva come preferito</span>
+          <input type="checkbox" id="f-fav" class="switch" />
+        </label>
+        <p class="muted small">Lo ritrovi come pulsante rapido nel Giornaliero per aggiungerlo con un tocco.</p>
         </div><!-- /recur-fields -->
 
         <button type="button" id="delete-entry" class="btn btn-danger full" hidden>Elimina</button>
