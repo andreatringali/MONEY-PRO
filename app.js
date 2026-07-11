@@ -667,7 +667,24 @@
     }
     if (editingId) {
       const t = data.transactions.find((x) => x.id === editingId);
+      const recurring = (t.repeat && t.repeat !== "none") || t.loanId || (payload.repeat && payload.repeat !== "none");
       Object.assign(t, payload);
+      if (recurring) {
+        const applyAll = confirm("Apportare le modifiche anche ai pagamenti successivi?\n\nOK = applica a tutte le occorrenze future · Annulla = solo questa");
+        if (applyAll && t.loanId) {
+          const loan = (data.loans || []).find((l) => l.id === t.loanId);
+          if (loan) {
+            loan.rata = payload.amount;
+            loan.accountId = payload.accountId;
+            loan.dayOfMonth = Math.min(28, Math.max(1, parseIso(payload.date).getDate()));
+            if (payload.description) loan.name = payload.description;
+            loan.nextDue = payload.date;
+            regenLoanSchedule(loan); // ricrea la rata futura dal finanziamento aggiornato
+          }
+        }
+        // ricorrente generica: se "tutte", la modifica su questa occorrenza si propaga
+        // alle successive (vengono copiate da qui); se "solo questa", nulla da fare.
+      }
       toast("Modifica salvata");
     } else {
       data.transactions.push(Object.assign({ id: uid(), groupId: null }, payload));
@@ -679,26 +696,26 @@
   function settlePlanned(t, useToday) {
     const schedDate = t.date;
     const loan = t.loanId ? (data.loans || []).find((l) => l.id === t.loanId) : null;
-    const loanWillFinish = loan ? (loan.paid + 1 >= loan.months) : false;
-    const nextDate = addInterval(schedDate, t.repeat && t.repeat !== "none" ? t.repeat : "monthly");
-    if (t.repeat && t.repeat !== "none" && !loanWillFinish) {
-      // crea la prossima occorrenza programmata (per i finanziamenti: la rata del mese dopo)
+    if (!loan && t.repeat && t.repeat !== "none") {
+      // ricorrente generica: la prossima occorrenza è copiata da questa
       data.transactions.push({
         id: uid(), accountId: t.accountId, categoryId: t.categoryId, kind: t.kind,
-        amount: t.amount, description: t.description, date: nextDate,
+        amount: t.amount, description: t.description, date: addInterval(schedDate, t.repeat),
         time: t.time || "", planned: true, repeat: t.repeat, auto: t.auto,
-        loanId: t.loanId || null, groupId: t.groupId || t.id,
+        fromAccountId: t.fromAccountId || null, toAccountId: t.toAccountId || null,
+        loanId: null, groupId: t.groupId || t.id,
       });
     }
     t.planned = false;
     if (useToday) t.date = todayIso();
     t.repeat = "none";
     t.auto = false;
-    // aggiorna la scheda finanziamento: una rata in meno, residuo che cala
+    // finanziamento: una rata in meno, residuo che cala, prossima rata dal template
     if (loan) {
       loan.paid = Math.min(loan.months, (loan.paid || 0) + 1);
       if (loan.residuo > 0) loan.residuo = Math.max(0, round2(loan.residuo - loan.rata));
-      loan.nextDue = loan.paid >= loan.months ? "" : nextDate;
+      loan.nextDue = loan.paid >= loan.months ? "" : addInterval(schedDate, "monthly");
+      ensureLoanSchedule(loan);
     }
   }
 
@@ -928,9 +945,9 @@
     if (!name) { toast("Dai un nome al finanziamento"); return; }
     if (!(rata > 0) || !(months > 0)) { toast("Inserisci rata e numero rate"); return; }
     if (!data.loans) data.loans = [];
-    let loan;
+    let loan, isEdit = false;
     if (loanEditId) {
-      loan = data.loans.find((x) => x.id === loanEditId);
+      loan = data.loans.find((x) => x.id === loanEditId); isEdit = true;
       Object.assign(loan, { name, rata, months, paid, dayOfMonth, accountId, residuo, nextDue, auto });
       toast("Finanziamento aggiornato");
     } else {
@@ -938,7 +955,8 @@
       data.loans.push(loan);
       toast("Finanziamento aggiunto");
     }
-    regenLoanSchedule(loan); // riprogramma le rate future
+    const applyAll = !isEdit || confirm("Apportare le modifiche anche alle rate successive?\n\nOK = riprogramma tutte le rate future · Annulla = lascia le rate già programmate");
+    if (applyAll) regenLoanSchedule(loan); // riprogramma le rate future
     autoSettle();            // registra subito le rate automatiche già scadute
     save(); render(); closeLoanEditor();
   }
