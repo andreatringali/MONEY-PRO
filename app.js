@@ -58,7 +58,7 @@
       goals: [],
       loans: [],
       favorites: [],
-      settings: { pin: null, reminders: false, lastBackup: null },
+      settings: { pin: null, reminders: false, lastBackup: null, theme: "light" },
     };
   }
   function defaultCategories() {
@@ -1155,8 +1155,15 @@
     }
     return bal;
   }
+  function cssVar(name, fallback) {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return v || fallback;
+  }
   function renderTrend() {
     const box = $("#trend-chart");
+    const cTerra = cssVar("--terra", "#B4573F");
+    const cInk = cssVar("--ink", "#2C2A26");
+    const cMuted = cssVar("--muted", "#8C867A");
     const now = new Date();
     const pts = [];
     for (let i = 5; i >= 0; i--) {
@@ -1172,15 +1179,15 @@
     const line = pts.map((p, i) => `${X(i).toFixed(1)},${Y(p.value).toFixed(1)}`).join(" ");
     const area = `M${X(0).toFixed(1)},${(H - padBot).toFixed(1)} L` + pts.map((p, i) => `${X(i).toFixed(1)},${Y(p.value).toFixed(1)}`).join(" L") + ` L${X(n - 1).toFixed(1)},${(H - padBot).toFixed(1)} Z`;
     const last = pts[n - 1];
-    const labels = pts.map((p, i) => `<text x="${X(i).toFixed(1)}" y="${H - 8}" font-size="9" fill="#8C867A" text-anchor="middle">${p.label}</text>`).join("");
-    const dots = pts.map((p, i) => `<circle cx="${X(i).toFixed(1)}" cy="${Y(p.value).toFixed(1)}" r="${i === n - 1 ? 4 : 2.5}" fill="#B4573F"/>`).join("");
+    const labels = pts.map((p, i) => `<text x="${X(i).toFixed(1)}" y="${H - 8}" font-size="9" fill="${cMuted}" text-anchor="middle">${p.label}</text>`).join("");
+    const dots = pts.map((p, i) => `<circle cx="${X(i).toFixed(1)}" cy="${Y(p.value).toFixed(1)}" r="${i === n - 1 ? 4 : 2.5}" fill="${cTerra}"/>`).join("");
     box.className = "trend";
     box.innerHTML = `
       <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
-        <path d="${area}" fill="#B4573F" fill-opacity="0.10"/>
-        <polyline points="${line}" fill="none" stroke="#B4573F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="${area}" fill="${cTerra}" fill-opacity="0.10"/>
+        <polyline points="${line}" fill="none" stroke="${cTerra}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
         ${dots}
-        <text x="${X(n - 1).toFixed(1)}" y="${(Y(last.value) - 8).toFixed(1)}" font-size="11" font-weight="700" fill="#2C2A26" text-anchor="end">${money0(last.value)}</text>
+        <text x="${X(n - 1).toFixed(1)}" y="${(Y(last.value) - 8).toFixed(1)}" font-size="11" font-weight="700" fill="${cInk}" text-anchor="end">${money0(last.value)}</text>
         ${labels}
       </svg>
       <div class="trend-legend"><span>${pts[0].label}: ${money0(pts[0].value)}</span><span>oggi: ${money0(last.value)}</span></div>`;
@@ -1337,6 +1344,7 @@
     $("#btn-set-pin").addEventListener("click", setPinFlow);
     $("#btn-remove-pin").addEventListener("click", removePinFlow);
     $("#btn-reminders").addEventListener("click", enableReminders);
+    $$("#theme-seg .seg-btn").forEach((b) => b.addEventListener("click", () => setTheme(b.dataset.theme)));
     $("#lock-pad").addEventListener("click", (e) => { const k = e.target.closest("[data-key]"); if (k) pressKey(k.dataset.key); });
     $("#add-goal").addEventListener("click", () => openGoalEditor(null));
     $("#gm-save").addEventListener("click", saveGoal);
@@ -1433,6 +1441,27 @@
     $("#btn-remove-pin").hidden = !has;
   }
 
+  // ---------- Tema (chiaro / scuro) ----------
+  function applyTheme() {
+    const t = settings().theme === "dark" ? "dark" : "light";
+    document.documentElement.dataset.theme = t;
+    // aggiorna il colore della barra di stato del sistema
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", t === "dark" ? "#211C17" : "#1E4A4E");
+    syncThemeButtons();
+    // il grafico dell'andamento usa i colori del tema: va ridisegnato
+    if (typeof renderTrend === "function" && $("#trend-chart")) { try { renderTrend(); } catch (e) {} }
+  }
+  function setTheme(t) {
+    settings().theme = t === "dark" ? "dark" : "light";
+    save();
+    applyTheme();
+  }
+  function syncThemeButtons() {
+    const t = settings().theme === "dark" ? "dark" : "light";
+    $$("#theme-seg .seg-btn").forEach((b) => b.classList.toggle("active", b.dataset.theme === t));
+  }
+
   // ---------- Promemoria ----------
   function enableReminders() {
     if (!("Notification" in window)) { toast("Notifiche non supportate qui"); return; }
@@ -1470,6 +1499,7 @@
   function updateFab(tab) { $("#fab").style.display = tab === "oggi" ? "none" : ""; }
 
   bind();
+  applyTheme();
   ensureLoanSchedules();
   autoSettle();
   render();
