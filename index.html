@@ -78,6 +78,11 @@
       </div>
       <div id="accounts-list"></div>
       <button id="add-account" class="ghost-btn">+ Aggiungi conto</button>
+
+      <div class="card" style="margin-top:16px">
+        <div class="card-head"><h3>Finanziamenti</h3><button id="add-loan" class="link-btn">Aggiungi</button></div>
+        <div id="loans-list" class="loans"></div>
+      </div>
     </section>
 
     <!-- MOVIMENTI -->
@@ -274,6 +279,38 @@
         <span style="width:56px"></span>
       </div>
       <div id="cat-grid" class="cat-grid"></div>
+    </div>
+  </div>
+
+  <!-- MODALE FINANZIAMENTO -->
+  <div id="loan-modal" class="modal" hidden>
+    <div class="modal-backdrop" data-close-lm></div>
+    <div class="modal-card">
+      <div class="modal-head">
+        <button class="modal-cancel" data-close-lm>Annulla</button>
+        <h3 id="lm-title">Nuovo finanziamento</h3>
+        <button class="modal-save" id="lm-save">Salva</button>
+      </div>
+      <div class="amount-input">
+        <span class="cur">€</span>
+        <input id="lm-rata" type="number" inputmode="decimal" step="0.01" placeholder="0,00" />
+      </div>
+      <p class="muted small center" style="margin:-8px 0 16px">Rata mensile</p>
+      <label class="field">
+        <span>Nome</span>
+        <input id="lm-name" type="text" placeholder="Es. Auto, Prestito Compass, Leasing" />
+      </label>
+      <div class="field-row">
+        <label class="field"><span>Rate totali</span><input id="lm-months" type="number" min="1" step="1" placeholder="Es. 48" /></label>
+        <label class="field"><span>Rate già pagate</span><input id="lm-paid" type="number" min="0" step="1" placeholder="0" /></label>
+      </div>
+      <div class="field-row">
+        <label class="field"><span>Giorno addebito</span><input id="lm-day" type="number" min="1" max="28" step="1" placeholder="Es. 5" /></label>
+        <label class="field"><span>Conto</span>
+          <select id="lm-account" class="select-inline" style="width:100%"></select>
+        </label>
+      </div>
+      <button type="button" id="lm-delete" class="btn btn-danger full" hidden>Elimina finanziamento</button>
     </div>
   </div>
 

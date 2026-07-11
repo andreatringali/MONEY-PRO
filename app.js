@@ -56,6 +56,7 @@
       categories: defaultCategories(),
       transactions: [],
       goals: [],
+      loans: [],
       settings: { pin: null, reminders: false },
     };
   }
@@ -202,6 +203,7 @@
     renderPlanned();
     renderCalendar();
     renderBilancio();
+    renderLoans();
     renderMovimenti();
     renderResoconti();
     save();
@@ -240,13 +242,16 @@
     const daccBox = $("#dash-accounts");
     const balances = data.accounts.map((a) => ({ a, b: accountBalance(a.id) }));
     const maxAbs = Math.max(1, ...balances.map((x) => Math.abs(x.b)));
+    const totPos = balances.reduce((s, x) => s + (x.b > 0 ? x.b : 0), 0) || 1;
     daccBox.innerHTML = balances.map(({ a, b }) => {
       const pct = Math.max(2, Math.abs(b) / maxAbs * 100);
+      const share = b > 0 ? Math.round(b / totPos * 100) : 0;
       const cls = b < 0 ? "neg" : "pos";
       return `<div class="acc-bar-row" data-goto="bilancio">
         <div class="acc-bar-top">
           <span class="abr-ico">${svg(a.icon || "wallet")}</span>
           <span class="abr-name">${esc(a.name)}</span>
+          <span class="abr-pct">${b > 0 ? share + "%" : "—"}</span>
           <b class="abr-val ${cls}">${money(b)}</b>
         </div>
         <div class="acc-bar"><i class="${cls}" style="width:${pct}%"></i></div>
@@ -752,6 +757,100 @@
     save(); render(); closeAccountEditor(); toast("Conto eliminato");
   }
 
+  // ---------- Finanziamenti ----------
+  function loanResiduo(l) { return Math.max(0, (l.months || 0) - (l.paid || 0)) * (l.rata || 0); }
+  function renderLoans() {
+    const box = $("#loans-list");
+    const loans = data.loans || [];
+    if (!loans.length) {
+      box.innerHTML = `<div class="loans-empty">Nessun finanziamento. Tocca "Aggiungi" per inserire un prestito con rata e residuo.</div>`;
+      return;
+    }
+    const totRes = loans.reduce((s, l) => s + loanResiduo(l), 0);
+    const totRata = loans.reduce((s, l) => s + (l.paid < l.months ? l.rata : 0), 0);
+    let html = `<div class="loans-sum">Residuo totale <b>${money(totRes)}</b> · rata mensile <b>${money(totRata)}</b></div>`;
+    html += loans.map((l) => {
+      const rimaste = Math.max(0, l.months - l.paid);
+      const done = l.paid >= l.months;
+      const pct = l.months ? Math.min(100, l.paid / l.months * 100) : 0;
+      const acc = accById(l.accountId);
+      return `<div class="loan-row" data-loan-edit="${l.id}">
+        <div class="loan-top">
+          <span class="loan-name">${esc(l.name)} ${done ? '<span class="pill">estinto</span>' : ""}</span>
+          <span class="loan-rata">${money0(l.rata)}/mese</span>
+        </div>
+        <div class="loan-bar"><i style="width:${pct}%"></i></div>
+        <div class="loan-foot">
+          <span>${l.paid}/${l.months} rate · <span class="res">residuo <b>${money0(loanResiduo(l))}</b></span></span>
+          ${done ? '<span class="done">Estinto 🎉</span>' : `<button class="loan-pay" data-payloan="${l.id}">Paga rata</button>`}
+        </div>
+      </div>`;
+    }).join("");
+    box.innerHTML = html;
+  }
+
+  const loanModal = $("#loan-modal");
+  let loanEditId = null;
+  function openLoanEditor(loan) {
+    loanModal.hidden = false;
+    const accSel = $("#lm-account");
+    accSel.innerHTML = data.accounts.map((a) => `<option value="${a.id}">${esc(a.name)}</option>`).join("");
+    if (loan) {
+      loanEditId = loan.id;
+      $("#lm-title").textContent = "Modifica finanziamento";
+      $("#lm-rata").value = loan.rata; $("#lm-name").value = loan.name;
+      $("#lm-months").value = loan.months; $("#lm-paid").value = loan.paid;
+      $("#lm-day").value = loan.dayOfMonth || ""; accSel.value = loan.accountId || (data.accounts[0] && data.accounts[0].id);
+      $("#lm-delete").hidden = false;
+    } else {
+      loanEditId = null;
+      $("#lm-title").textContent = "Nuovo finanziamento";
+      $("#lm-rata").value = ""; $("#lm-name").value = "";
+      $("#lm-months").value = ""; $("#lm-paid").value = "0"; $("#lm-day").value = "";
+      accSel.value = data.accounts[0] ? data.accounts[0].id : "";
+      $("#lm-delete").hidden = true;
+    }
+  }
+  function closeLoanEditor() { loanModal.hidden = true; }
+  function saveLoan() {
+    const name = $("#lm-name").value.trim();
+    const rata = parseFloat(String($("#lm-rata").value || "0").replace(",", ".")) || 0;
+    const months = parseInt($("#lm-months").value, 10) || 0;
+    const paid = Math.min(months, Math.max(0, parseInt($("#lm-paid").value, 10) || 0));
+    const dayOfMonth = Math.min(28, Math.max(1, parseInt($("#lm-day").value, 10) || 1));
+    const accountId = $("#lm-account").value || (data.accounts[0] && data.accounts[0].id);
+    if (!name) { toast("Dai un nome al finanziamento"); return; }
+    if (!(rata > 0) || !(months > 0)) { toast("Inserisci rata e numero rate"); return; }
+    if (!data.loans) data.loans = [];
+    if (loanEditId) {
+      Object.assign(data.loans.find((x) => x.id === loanEditId), { name, rata, months, paid, dayOfMonth, accountId });
+      toast("Finanziamento aggiornato");
+    } else {
+      data.loans.push({ id: "loan_" + uid(), name, rata, months, paid, dayOfMonth, accountId });
+      toast("Finanziamento aggiunto");
+    }
+    save(); render(); closeLoanEditor();
+  }
+  function deleteLoan() {
+    if (loanEditId && confirm("Eliminare questo finanziamento?")) {
+      data.loans = data.loans.filter((l) => l.id !== loanEditId);
+      save(); render(); closeLoanEditor(); toast("Finanziamento eliminato");
+    }
+  }
+  function payLoanRata(id) {
+    const l = (data.loans || []).find((x) => x.id === id);
+    if (!l || l.paid >= l.months) return;
+    l.paid += 1;
+    const cat = data.categories.find((c) => c.id === "finanziamenti_expense") || data.categories.find((c) => c.kind === "expense");
+    data.transactions.push({
+      id: uid(), accountId: l.accountId, categoryId: cat ? cat.id : null, kind: "expense",
+      amount: l.rata, description: l.name, date: todayIso(), time: "", planned: false,
+      repeat: "none", auto: false, fromAccountId: null, toAccountId: null, groupId: null,
+    });
+    save(); render();
+    toast(l.paid >= l.months ? "Finanziamento estinto! 🎉" : "Rata registrata");
+  }
+
   // ---------- Obiettivi (modale) ----------
   const goalModal = $("#goal-modal");
   let goalEditId = null;
@@ -875,6 +974,12 @@
 
       const goalEdit = e.target.closest("[data-goal-edit]");
       if (goalEdit) { openGoalEditor((data.goals || []).find((g) => g.id === goalEdit.dataset.goalEdit)); return; }
+
+      const payLoan = e.target.closest("[data-payloan]");
+      if (payLoan) { e.stopPropagation(); payLoanRata(payLoan.dataset.payloan); return; }
+      const loanEdit = e.target.closest("[data-loan-edit]");
+      if (loanEdit) { openLoanEditor((data.loans || []).find((l) => l.id === loanEdit.dataset.loanEdit)); return; }
+      if (e.target.hasAttribute("data-close-lm")) { closeLoanEditor(); return; }
       const gsrc = e.target.closest("[data-gsource]");
       if (gsrc) { goalForm.source = gsrc.dataset.gsource; renderGoalSources(); return; }
       if (e.target.hasAttribute("data-close-gm")) { closeGoalEditor(); return; }
@@ -952,6 +1057,9 @@
     $("#gm-delete").addEventListener("click", deleteGoal);
     $("#edit-budget").addEventListener("click", openBudgetEditor);
     $("#bm-save").addEventListener("click", saveBudget);
+    $("#add-loan").addEventListener("click", () => openLoanEditor(null));
+    $("#lm-save").addEventListener("click", saveLoan);
+    $("#lm-delete").addEventListener("click", deleteLoan);
     $("#manage-cats").addEventListener("click", () => openCatPicker("manage"));
     $("#filter-month").addEventListener("change", renderMovimenti);
     $("#filter-account").addEventListener("change", renderMovimenti);
