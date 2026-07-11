@@ -181,6 +181,14 @@
         <div id="fav-manage" class="fav-manage"></div>
       </div>
       <div class="settings-block">
+        <h3>Esporta e stampa</h3>
+        <p class="muted">Scarica i movimenti in formato foglio di calcolo (CSV) o stampa un resoconto.</p>
+        <div class="btn-row">
+          <button id="btn-export-csv" class="btn btn-secondary">Esporta CSV</button>
+          <button id="btn-print" class="btn btn-secondary">Stampa / PDF</button>
+        </div>
+      </div>
+      <div class="settings-block">
         <h3>Backup dei dati</h3>
         <p class="muted">I dati sono salvati solo su questo dispositivo. Esporta un file per non perderli.</p>
         <div class="btn-row">
@@ -197,6 +205,9 @@
       <p class="muted center">Tasca · dati locali · funziona offline</p>
     </section>
   </main>
+
+  <!-- Area di stampa (visibile solo durante la stampa/PDF) -->
+  <div id="print-area" class="print-area"></div>
 
   <button id="fab" class="fab" data-add aria-label="Aggiungi">+</button>
 

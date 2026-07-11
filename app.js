@@ -1234,6 +1234,96 @@
     r.readAsText(file);
   }
 
+  // ---------- Esporta CSV ----------
+  function csvCell(v) {
+    const s = String(v == null ? "" : v);
+    return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+  function exportCSV() {
+    const rows = data.transactions.filter((t) => !t.planned)
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    if (!rows.length) { toast("Nessun movimento da esportare"); return; }
+    const head = ["Data", "Ora", "Tipo", "Categoria", "Conto", "Descrizione", "Importo"];
+    const lines = [head.join(";")];
+    for (const t of rows) {
+      let tipo, conto, importo;
+      if (t.kind === "transfer") {
+        tipo = "Trasferimento";
+        const fa = accById(t.fromAccountId), ta = accById(t.toAccountId);
+        conto = (fa ? fa.name : "?") + " -> " + (ta ? ta.name : "?");
+        importo = t.amount;
+      } else {
+        tipo = t.kind === "income" ? "Entrata" : "Uscita";
+        const a = accById(t.accountId);
+        conto = a ? a.name : "";
+        importo = (t.kind === "expense" ? -t.amount : t.amount);
+      }
+      const c = catById(t.categoryId);
+      const val = String(importo.toFixed(2)).replace(".", ","); // formato numerico italiano
+      lines.push([t.date, t.time || "", tipo, c ? c.name : "", conto, t.description || "", val].map(csvCell).join(";"));
+    }
+    // BOM per far riconoscere l'UTF-8 a Excel
+    const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url;
+    a.download = `tasca-movimenti-${todayIso()}.csv`; a.click();
+    URL.revokeObjectURL(url);
+    toast("CSV esportato");
+  }
+
+  // ---------- Stampa / PDF ----------
+  function printReport() {
+    const area = $("#print-area");
+    if (!area) return;
+    const rows = data.transactions.filter((t) => !t.planned)
+      .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+    let totIn = 0, totOut = 0;
+    for (const t of rows) {
+      if (t.kind === "income") totIn += t.amount;
+      else if (t.kind === "expense") totOut += t.amount;
+    }
+    const accRows = data.accounts.map((a) =>
+      `<tr><td>${esc(a.name)}</td><td>${money(accountBalance(a.id))}</td></tr>`).join("");
+    const bodyRows = rows.map((t) => {
+      let desc, cat, conto, cls, sign, amt;
+      if (t.kind === "transfer") {
+        const fa = accById(t.fromAccountId), ta = accById(t.toAccountId);
+        desc = esc(t.description || "Trasferimento"); cat = "—";
+        conto = (fa ? esc(fa.name) : "?") + " → " + (ta ? esc(ta.name) : "?");
+        cls = ""; sign = ""; amt = money(t.amount);
+      } else {
+        const c = catById(t.categoryId), a = accById(t.accountId);
+        desc = esc(t.description || (c ? c.name : "Movimento"));
+        cat = c ? esc(c.name) : "—"; conto = a ? esc(a.name) : "—";
+        cls = t.kind === "income" ? "print-in" : "print-out";
+        sign = t.kind === "income" ? "+ " : "− "; amt = money(t.amount);
+      }
+      return `<tr>
+        <td>${cap(fmtDateShort(t.date))}</td>
+        <td>${desc}</td><td>${cat}</td><td>${conto}</td>
+        <td class="num ${cls}">${sign}${amt}</td></tr>`;
+    }).join("");
+    const now = parseIso(todayIso());
+    area.innerHTML = `
+      <h1 class="print-h1">Tasca — Resoconto</h1>
+      <p class="print-sub">Generato il ${cap(now.toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" }))}</p>
+      <div class="print-section-title">Conti</div>
+      <table class="print-summary">${accRows}
+        <tr><td><b>Patrimonio netto</b></td><td><b>${money(netWorth())}</b></td></tr></table>
+      <div class="print-section-title">Totali</div>
+      <table class="print-summary">
+        <tr><td>Entrate totali</td><td class="print-in">${money(totIn)}</td></tr>
+        <tr><td>Uscite totali</td><td class="print-out">${money(totOut)}</td></tr>
+        <tr><td><b>Saldo</b></td><td><b>${money(totIn - totOut)}</b></td></tr></table>
+      <div class="print-section-title">Movimenti (${rows.length})</div>
+      <table class="print-table">
+        <thead><tr><th>Data</th><th>Descrizione</th><th>Categoria</th><th>Conto</th><th>Importo</th></tr></thead>
+        <tbody>${bodyRows || '<tr><td colspan="5">Nessun movimento</td></tr>'}</tbody>
+      </table>
+      <p class="print-foot">Tasca · dati locali · ${data.accounts.length} conti · ${rows.length} movimenti</p>`;
+    window.print();
+  }
+
   // ---------- Eventi ----------
   function bind() {
     $$(".tab-btn").forEach((btn) => btn.addEventListener("click", () => {
@@ -1365,6 +1455,8 @@
     }));
 
     $("#btn-export").addEventListener("click", exportData);
+    $("#btn-export-csv").addEventListener("click", exportCSV);
+    $("#btn-print").addEventListener("click", printReport);
     $("#btn-import").addEventListener("click", () => $("#import-file").click());
     $("#import-file").addEventListener("change", (e) => { if (e.target.files[0]) importData(e.target.files[0]); e.target.value = ""; });
     $("#btn-reset").addEventListener("click", () => {
