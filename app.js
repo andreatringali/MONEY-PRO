@@ -346,17 +346,38 @@
     if (fa !== "all") items = items.filter((t) => t.accountId === fa);
 
     const box = $("#movements-list");
-    if (!items.length) { box.innerHTML = `<div class="empty">Nessun movimento.</div>`; return; }
-    box.innerHTML = items.map((t) => {
-      const c = catById(t.categoryId), a = accById(t.accountId);
-      const sign = t.kind === "income" ? "+ " : "− ";
-      return `<div class="row" data-edit="${t.id}">
-        <div class="row-ico">${svg(c ? c.icon : "tag")}</div>
-        <div class="row-main"><div class="row-title">${esc(t.description || (c ? c.name : "Movimento"))}</div>
-          <div class="row-sub">${cap(fmtDateShort(t.date))}${t.time ? " " + t.time : ""}${a ? " · " + esc(a.name) : ""}${c ? " · " + esc(c.name) : ""}</div></div>
-        <span class="amount-plain ${t.kind === "income" ? "in" : "out"}">${sign}${money(t.amount)}</span>
+    if (!items.length) { box.innerHTML = `<div class="empty">Nessun movimento in questo periodo.</div>`; return; }
+
+    // Raggruppa per giorno
+    const days = [];
+    const byDay = {};
+    for (const t of items) {
+      if (!byDay[t.date]) { byDay[t.date] = []; days.push(t.date); }
+      byDay[t.date].push(t);
+    }
+    box.innerHTML = days.map((day) => {
+      const list = byDay[day];
+      const net = list.reduce((s, t) => s + (t.kind === "income" ? t.amount : -t.amount), 0);
+      const rows = list.map((t) => {
+        const c = catById(t.categoryId), a = accById(t.accountId);
+        const sign = t.kind === "income" ? "+ " : "− ";
+        return `<div class="row" data-edit="${t.id}">
+          <div class="row-ico">${svg(c ? c.icon : "tag")}</div>
+          <div class="row-main"><div class="row-title">${esc(t.description || (c ? c.name : "Movimento"))}</div>
+            <div class="row-sub">${t.time ? t.time + " · " : ""}${a ? esc(a.name) : ""}${c ? " · " + esc(c.name) : ""}</div></div>
+          <span class="amount-plain ${t.kind === "income" ? "in" : "out"}">${sign}${money(t.amount)}</span>
+        </div>`;
+      }).join("");
+      return `<div class="card">
+        <div class="card-head"><h3>${cap(fmtDayLong(day))}</h3>
+          <span class="card-side ${net < 0 ? "neg" : "pos"}">${net >= 0 ? "+ " : "− "}${money(Math.abs(net))}</span></div>
+        <div class="list inset">${rows}</div>
       </div>`;
     }).join("");
+  }
+  function fmtDayLong(iso) {
+    const d = parseIso(iso);
+    return d.toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "long" });
   }
 
   function renderResoconti() {

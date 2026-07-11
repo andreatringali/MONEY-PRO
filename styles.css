@@ -166,6 +166,8 @@ main { max-width: 720px; margin: 0 auto; padding: 0 16px; }
 .card, .report-card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 12px; }
 .report-card h3 { font-size: 14px; margin-bottom: 14px; font-weight: 700; }
 .card-side { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.card-side.pos { color: var(--amount-in); font-weight: 700; }
+.card-side.neg { color: var(--amount-out); font-weight: 700; }
 
 /* Righe dentro una scheda: niente padding orizzontale, ultima senza bordo */
 .list.inset .row { padding-left: 0; padding-right: 0; }
@@ -222,9 +224,10 @@ main { max-width: 720px; margin: 0 auto; padding: 0 16px; }
 }
 .tab-btn {
   border: none; background: transparent; color: var(--muted); cursor: pointer;
-  padding: 9px 2px 7px; display: flex; flex-direction: column; align-items: center; gap: 3px;
-  font-size: 10.5px; font-family: inherit;
+  padding: 9px 1px 7px; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  font-size: 10px; font-family: inherit;
 }
+.tab-btn > span:last-child { white-space: nowrap; }
 .tab-ico { width: 23px; height: 23px; }
 .tab-ico svg { width: 100%; height: 100%; }
 .tab-btn.active { color: var(--accent); }

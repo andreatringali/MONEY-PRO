@@ -74,7 +74,7 @@
 
     <!-- BILANCIO -->
     <section id="tab-bilancio" class="tab-panel">
-      <header class="page-head simple"><h1>Bilancio</h1><button class="head-add" data-add aria-label="Aggiungi">+</button></header>
+      <header class="page-head simple"><h1>Conti</h1><button class="head-add" data-add aria-label="Aggiungi">+</button></header>
       <div class="net-strip">
         <span class="net-label">Totale</span>
         <span id="net-worth" class="net-value">€ 0,00</span>
@@ -85,12 +85,12 @@
 
     <!-- MOVIMENTI -->
     <section id="tab-movimenti" class="tab-panel">
-      <header class="page-head simple"><h1>Movimenti</h1><button class="head-add" data-add aria-label="Aggiungi">+</button></header>
+      <header class="page-head simple"><h1>Giornaliero</h1><button class="head-add" data-add aria-label="Aggiungi">+</button></header>
       <div class="filters">
         <select id="filter-month" class="select-inline" aria-label="Filtra per mese"></select>
         <select id="filter-account" class="select-inline" aria-label="Filtra per conto"></select>
       </div>
-      <div class="card"><div id="movements-list" class="list inset"></div></div>
+      <div id="movements-list"></div>
     </section>
 
     <!-- RESOCONTI -->
@@ -151,8 +151,8 @@
 
   <nav class="tabbar">
     <button class="tab-btn active" data-tab="oggi"><span class="tab-ico" data-i="dashboard"></span><span>Dashboard</span></button>
-    <button class="tab-btn" data-tab="bilancio"><span class="tab-ico" data-i="scale"></span><span>Bilancio</span></button>
-    <button class="tab-btn" data-tab="movimenti"><span class="tab-ico" data-i="swap"></span><span>Movimenti</span></button>
+    <button class="tab-btn" data-tab="bilancio"><span class="tab-ico" data-i="wallet"></span><span>Conti</span></button>
+    <button class="tab-btn" data-tab="movimenti"><span class="tab-ico" data-i="today"></span><span>Giornaliero</span></button>
     <button class="tab-btn" data-tab="resoconti"><span class="tab-ico" data-i="chart"></span><span>Resoconti</span></button>
     <button class="tab-btn" data-tab="altro"><span class="tab-ico" data-i="dots"></span><span>Altro</span></button>
   </nav>
