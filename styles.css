@@ -137,6 +137,7 @@ main { max-width: 720px; margin: 0 auto; padding: 0 16px; }
 .amount-plain { font-weight: 700; font-size: 14px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .amount-plain.in { color: var(--amount-in); }
 .amount-plain.out { color: var(--amount-out); }
+.amount-plain.xfer { color: var(--muted); }
 .pill { display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: rgba(255,255,255,.1); color: var(--muted); text-transform: uppercase; letter-spacing: .3px; }
 .pill.auto { background: rgba(45,212,191,.18); color: var(--accent); }
 
@@ -156,6 +157,22 @@ main { max-width: 720px; margin: 0 auto; padding: 0 16px; }
   width: 100%; margin-top: 16px; padding: 13px; border-radius: 12px; cursor: pointer;
   background: transparent; border: 1.5px dashed var(--line); color: var(--muted); font-size: 14px; font-weight: 600;
 }
+
+/* Calendario */
+.cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.cal-title { font-size: 14px; font-weight: 700; }
+.cal-nav { border: 1px solid var(--line); background: rgba(0,0,0,.2); color: var(--text); width: 32px; height: 32px; border-radius: 9px; font-size: 18px; cursor: pointer; line-height: 1; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.cal-dow { text-align: center; font-size: 10.5px; color: var(--muted); padding-bottom: 4px; font-weight: 600; }
+.cal-day { position: relative; aspect-ratio: 1; border: none; background: transparent; color: var(--text); font-family: inherit; font-size: 13px; border-radius: 9px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.cal-day:active { background: rgba(255,255,255,.05); }
+.cal-day.today { color: var(--accent); font-weight: 800; }
+.cal-day.sel { background: var(--accent); color: #06231f; font-weight: 700; }
+.cal-day .dot { position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%); width: 5px; height: 5px; border-radius: 50%; background: var(--amount-out); }
+.cal-day .dot.plan { background: var(--amount-plan); }
+.cal-day.sel .dot { background: #06231f; }
+.day-filter-bar { display: flex; align-items: center; justify-content: space-between; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; margin-bottom: 10px; font-size: 13px; }
+.day-filter-bar button { border: none; background: var(--accent); color: #06231f; font-weight: 700; border-radius: 8px; padding: 6px 12px; font-size: 12px; cursor: pointer; font-family: inherit; }
 
 /* Filters */
 .filters { display: flex; gap: 10px; margin: 4px 0 8px; }
@@ -346,6 +363,22 @@ main { max-width: 720px; margin: 0 auto; padding: 0 16px; }
 .cat-cell .cc-ico svg { width: 30px; height: 30px; opacity: .95; }
 .cat-cell.selected .cc-ico { border-color: var(--accent); background: rgba(45,212,191,.12); }
 .cat-cell span { font-size: 12px; text-align: center; line-height: 1.2; }
+
+/* Schermata di blocco */
+.lock { position: fixed; inset: 0; z-index: 80; background: linear-gradient(180deg, #12303a, #0a171c); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; }
+.lock[hidden] { display: none; }
+.lock-mark { width: 60px; height: 60px; border-radius: 16px; background: var(--accent); color: #06231f; display: grid; place-items: center; font-size: 34px; font-weight: 800; margin-bottom: 14px; }
+.lock-title { font-size: 20px; font-weight: 700; }
+.lock-msg { color: var(--muted); font-size: 14px; margin-top: 6px; }
+.lock-dots { display: flex; gap: 14px; margin: 26px 0; }
+.lock-dots .pd { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--muted); }
+.lock-dots .pd.on { background: var(--accent); border-color: var(--accent); }
+.lock.shake { animation: shake .35s; }
+@keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
+.lock-pad { display: grid; grid-template-columns: repeat(3, 74px); gap: 16px; }
+.lock-pad button { width: 74px; height: 74px; border-radius: 50%; border: 1px solid var(--line); background: rgba(255,255,255,.05); color: var(--text); font-size: 26px; font-family: inherit; cursor: pointer; }
+.lock-pad button:active { background: rgba(255,255,255,.12); }
+.lock-pad button.blank { border: none; background: transparent; cursor: default; }
 
 /* Toast */
 .toast {

@@ -56,6 +56,7 @@
       categories: defaultCategories(),
       transactions: [],
       goals: [],
+      settings: { pin: null, reminders: false },
     };
   }
   function defaultCategories() {
@@ -119,6 +120,11 @@
   function parseIso(iso) { return new Date(iso + "T00:00:00"); }
   function periodKey(iso) { return iso.slice(0, 7); }
   function currentPeriod() { return todayIso().slice(0, 7); }
+  function shiftMonth(key, delta) {
+    const [y, m] = key.split("-").map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
+    return d.getFullYear() + "-" + p2(d.getMonth() + 1);
+  }
   function fmtDateShort(iso) {
     return parseIso(iso).toLocaleDateString("it-IT", { day: "numeric", month: "short" });
   }
@@ -149,8 +155,13 @@
     const acc = accById(accId);
     let bal = acc ? acc.opening || 0 : 0;
     for (const t of data.transactions) {
-      if (t.accountId !== accId || t.planned) continue;
-      bal += t.kind === "income" ? t.amount : -t.amount;
+      if (t.planned) continue;
+      if (t.kind === "transfer") {
+        if (t.fromAccountId === accId) bal -= t.amount;
+        if (t.toAccountId === accId) bal += t.amount;
+      } else if (t.accountId === accId) {
+        bal += t.kind === "income" ? t.amount : -t.amount;
+      }
     }
     return bal;
   }
@@ -189,6 +200,7 @@
     renderNavIcons();
     renderToday();
     renderPlanned();
+    renderCalendar();
     renderBilancio();
     renderMovimenti();
     renderResoconti();
@@ -336,6 +348,33 @@
     return g.source === "total" || !accById(g.source) ? netWorth() : accountBalance(g.source);
   }
 
+  // ---------- Calendario ----------
+  let calMonth = currentPeriod();  // 'YYYY-MM'
+  let selectedDay = null;          // 'YYYY-MM-DD' o null
+
+  function renderCalendar() {
+    const [y, m] = calMonth.split("-").map(Number);
+    $("#cal-title").textContent = cap(new Date(y, m - 1, 1).toLocaleDateString("it-IT", { month: "long", year: "numeric" }));
+    const startDow = (new Date(y, m - 1, 1).getDay() + 6) % 7; // lun=0
+    const daysInMonth = new Date(y, m, 0).getDate();
+    const hasTx = {}, hasPlan = {};
+    for (const t of data.transactions) {
+      if (periodKey(t.date) !== calMonth) continue;
+      if (t.planned) hasPlan[t.date] = true; else hasTx[t.date] = true;
+    }
+    const dows = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"].map((d) => `<span class="cal-dow">${d}</span>`);
+    const blanks = Array.from({ length: startDow }, () => "<span></span>");
+    const todayI = todayIso();
+    const cells = [];
+    for (let d = 1; d <= daysInMonth; d++) {
+      const iso = y + "-" + p2(m) + "-" + p2(d);
+      const cls = (iso === todayI ? "today " : "") + (iso === selectedDay ? "sel" : "");
+      const dot = hasPlan[iso] ? '<i class="dot plan"></i>' : hasTx[iso] ? '<i class="dot"></i>' : "";
+      cells.push(`<button class="cal-day ${cls}" data-day="${iso}"><span>${d}</span>${dot}</button>`);
+    }
+    $("#cal-grid").innerHTML = dows.concat(blanks, cells).join("");
+  }
+
   function renderMovimenti() {
     const sel = $("#filter-month"), selA = $("#filter-account");
     const periods = Array.from(new Set(data.transactions.filter((t) => !t.planned).map((t) => periodKey(t.date)))).sort().reverse();
@@ -349,10 +388,14 @@
     const fm = sel.value || "all", fa = selA.value || "all";
     let items = data.transactions.filter((t) => !t.planned).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
     if (fm !== "all") items = items.filter((t) => periodKey(t.date) === fm);
-    if (fa !== "all") items = items.filter((t) => t.accountId === fa);
+    if (fa !== "all") items = items.filter((t) => t.accountId === fa || t.fromAccountId === fa || t.toAccountId === fa);
+    if (selectedDay) items = items.filter((t) => t.date === selectedDay);
 
     const box = $("#movements-list");
-    if (!items.length) { box.innerHTML = `<div class="empty">Nessun movimento in questo periodo.</div>`; return; }
+    const dayBar = selectedDay
+      ? `<div class="day-filter-bar"><span>Giorno: <b>${cap(fmtDayLong(selectedDay))}</b></span><button data-clear-day>Mostra tutti</button></div>`
+      : "";
+    if (!items.length) { box.innerHTML = dayBar + `<div class="empty">Nessun movimento in questo ${selectedDay ? "giorno" : "periodo"}.</div>`; return; }
 
     // Raggruppa per giorno
     const days = [];
@@ -363,8 +406,17 @@
     }
     box.innerHTML = days.map((day) => {
       const list = byDay[day];
-      const net = list.reduce((s, t) => s + (t.kind === "income" ? t.amount : -t.amount), 0);
+      const net = list.reduce((s, t) => s + (t.kind === "income" ? t.amount : t.kind === "expense" ? -t.amount : 0), 0);
       const rows = list.map((t) => {
+        if (t.kind === "transfer") {
+          const fa = accById(t.fromAccountId), ta = accById(t.toAccountId);
+          return `<div class="row" data-edit="${t.id}">
+            <div class="row-ico">${svg("swap")}</div>
+            <div class="row-main"><div class="row-title">${esc(t.description || "Trasferimento")}</div>
+              <div class="row-sub">${t.time ? t.time + " · " : ""}${fa ? esc(fa.name) : "?"} → ${ta ? esc(ta.name) : "?"}</div></div>
+            <span class="amount-plain xfer">${money(t.amount)}</span>
+          </div>`;
+        }
         const c = catById(t.categoryId), a = accById(t.accountId);
         const sign = t.kind === "income" ? "+ " : "− ";
         return `<div class="row" data-edit="${t.id}">
@@ -380,6 +432,7 @@
         <div class="list inset">${rows}</div>
       </div>`;
     }).join("");
+    box.innerHTML = dayBar + box.innerHTML;
   }
   function fmtDayLong(iso) {
     const d = parseIso(iso);
@@ -449,14 +502,15 @@
   // ---------- Modale movimento ----------
   const modal = $("#modal");
   let editingId = null;
-  const form = { kind: "expense", categoryId: null, accountId: null, repeat: "none" };
+  const form = { kind: "expense", categoryId: null, accountId: null, toAccountId: null, repeat: "none" };
 
   function openModal(editTx) {
     modal.hidden = false;
     if (editTx) {
       editingId = editTx.id;
       form.kind = editTx.kind; form.categoryId = editTx.categoryId;
-      form.accountId = editTx.accountId; form.repeat = editTx.repeat || "none";
+      form.accountId = editTx.kind === "transfer" ? editTx.fromAccountId : editTx.accountId;
+      form.toAccountId = editTx.toAccountId || null; form.repeat = editTx.repeat || "none";
       $("#f-amount").value = editTx.amount;
       $("#f-desc").value = editTx.description || "";
       $("#f-date").value = editTx.date;
@@ -468,7 +522,8 @@
     } else {
       editingId = null;
       form.kind = "expense"; form.categoryId = null;
-      form.accountId = data.accounts[0] ? data.accounts[0].id : null; form.repeat = "none";
+      form.accountId = data.accounts[0] ? data.accounts[0].id : null;
+      form.toAccountId = data.accounts[1] ? data.accounts[1].id : null; form.repeat = "none";
       $("#entry-form").reset();
       $("#f-date").value = todayIso();
       $("#modal-title").textContent = "Nuovo";
@@ -478,7 +533,14 @@
   }
   function closeModal() { modal.hidden = true; }
 
-  function syncKind() { $$("#seg-kind .seg-btn").forEach((b) => b.classList.toggle("active", b.dataset.kind === form.kind)); }
+  function syncKind() {
+    $$("#seg-kind .seg-btn").forEach((b) => b.classList.toggle("active", b.dataset.kind === form.kind));
+    const isXfer = form.kind === "transfer";
+    $("#pick-category").style.display = isXfer ? "none" : "";
+    $("#pick-account2").hidden = !isXfer;
+    $("#recur-fields").style.display = isXfer ? "none" : "";
+    $("#acc-label").textContent = isXfer ? "Da conto" : "Conto";
+  }
   function syncRepeat() { $$("#repeat-chips .chip").forEach((b) => b.classList.toggle("active", b.dataset.rep === form.repeat)); }
   function syncPickers() {
     const c = catById(form.categoryId);
@@ -487,28 +549,45 @@
     const a = accById(form.accountId);
     $("#acc-ico").innerHTML = svg(a ? a.icon || "wallet" : "wallet");
     $("#acc-name").textContent = a ? a.name : "—";
+    const a2 = accById(form.toAccountId);
+    $("#acc-ico2").innerHTML = svg(a2 ? a2.icon || "wallet" : "wallet");
+    $("#acc-name2").textContent = a2 ? a2.name : "—";
   }
 
   function saveEntry() {
     const amount = parseFloat(String($("#f-amount").value).replace(",", "."));
     if (!(amount > 0)) { toast("Inserisci un importo"); return; }
-    if (!form.categoryId) { toast("Scegli una categoria"); return; }
-    if (!form.accountId) { toast("Scegli un conto"); return; }
-    const auto = $("#f-auto").checked;
-    const planned = $("#f-planned").checked || auto || form.repeat !== "none";
-    const payload = {
-      accountId: form.accountId, categoryId: form.categoryId, kind: form.kind,
-      amount, description: $("#f-desc").value.trim(),
-      date: $("#f-date").value || todayIso(), time: $("#f-time").value || "",
-      planned, repeat: form.repeat, auto,
-    };
+
+    let payload;
+    if (form.kind === "transfer") {
+      if (!form.accountId || !form.toAccountId) { toast("Scegli i conti"); return; }
+      if (form.accountId === form.toAccountId) { toast("Scegli due conti diversi"); return; }
+      payload = {
+        kind: "transfer", fromAccountId: form.accountId, toAccountId: form.toAccountId,
+        amount, description: $("#f-desc").value.trim(),
+        date: $("#f-date").value || todayIso(), time: $("#f-time").value || "",
+        planned: false, repeat: "none", auto: false,
+        accountId: null, categoryId: null,
+      };
+    } else {
+      if (!form.categoryId) { toast("Scegli una categoria"); return; }
+      if (!form.accountId) { toast("Scegli un conto"); return; }
+      const auto = $("#f-auto").checked;
+      const planned = $("#f-planned").checked || auto || form.repeat !== "none";
+      payload = {
+        accountId: form.accountId, categoryId: form.categoryId, kind: form.kind,
+        amount, description: $("#f-desc").value.trim(),
+        date: $("#f-date").value || todayIso(), time: $("#f-time").value || "",
+        planned, repeat: form.repeat, auto, fromAccountId: null, toAccountId: null,
+      };
+    }
     if (editingId) {
       const t = data.transactions.find((x) => x.id === editingId);
       Object.assign(t, payload);
       toast("Modifica salvata");
     } else {
       data.transactions.push(Object.assign({ id: uid(), groupId: null }, payload));
-      toast(planned ? "Operazione programmata" : "Movimento salvato");
+      toast(form.kind === "transfer" ? "Trasferimento salvato" : payload.planned ? "Operazione programmata" : "Movimento salvato");
     }
     render(); closeModal();
   }
@@ -572,7 +651,9 @@
 
   // ---------- Picker conto ----------
   const accModal = $("#acc-modal");
-  function openAccPicker() {
+  let accPickerTarget = "from"; // 'from' (accountId) | 'to' (toAccountId)
+  function openAccPicker(target) {
+    accPickerTarget = target || "from";
     accModal.hidden = false;
     $("#acc-picker-list").innerHTML = data.accounts.map((a) =>
       `<div class="row" data-acc-pick="${a.id}"><div class="row-ico">${svg(a.icon || "wallet")}</div>
@@ -643,7 +724,7 @@
     } else {
       const newAcc = { id: "acc_" + uid(), name, icon: accForm.icon, type: accForm.type, opening: target };
       data.accounts.push(newAcc);
-      if (pendingAccSelect) { form.accountId = newAcc.id; syncPickers(); }
+      if (pendingAccSelect) { if (accPickerTarget === "to") form.toAccountId = newAcc.id; else form.accountId = newAcc.id; syncPickers(); }
       toast("Conto aggiunto");
     }
     pendingAccSelect = false;
@@ -808,13 +889,27 @@
       if (catAdd) { addCategory(catAdd.dataset.catAdd); return; }
 
       const accPick = e.target.closest("[data-acc-pick]");
-      if (accPick) { form.accountId = accPick.dataset.accPick; syncPickers(); closeAccPicker(); return; }
+      if (accPick) {
+        if (accPickerTarget === "to") form.toAccountId = accPick.dataset.accPick;
+        else form.accountId = accPick.dataset.accPick;
+        syncPickers(); closeAccPicker(); return;
+      }
       if (e.target.closest("[data-acc-new]")) { pendingAccSelect = true; closeAccPicker(); openAccountEditor(null); return; }
+
+      const dayCell = e.target.closest("[data-day]");
+      if (dayCell) {
+        selectedDay = selectedDay === dayCell.dataset.day ? null : dayCell.dataset.day;
+        renderCalendar(); renderMovimenti(); return;
+      }
+      if (e.target.closest("[data-clear-day]")) { selectedDay = null; renderCalendar(); renderMovimenti(); return; }
 
       if (e.target.hasAttribute("data-close")) closeModal();
       if (e.target.hasAttribute("data-close-cat")) closeCatPicker();
       if (e.target.hasAttribute("data-close-acc")) closeAccPicker();
     });
+
+    $("#cal-prev").addEventListener("click", () => { calMonth = shiftMonth(calMonth, -1); renderCalendar(); });
+    $("#cal-next").addEventListener("click", () => { calMonth = shiftMonth(calMonth, 1); renderCalendar(); });
 
     $$("#seg-kind .seg-btn").forEach((b) => b.addEventListener("click", () => {
       form.kind = b.dataset.kind;
@@ -828,7 +923,8 @@
     $("#modal-save").addEventListener("click", saveEntry);
     $("#entry-form").addEventListener("submit", (e) => { e.preventDefault(); saveEntry(); });
     $("#pick-category").addEventListener("click", () => openCatPicker("select"));
-    $("#pick-account").addEventListener("click", openAccPicker);
+    $("#pick-account").addEventListener("click", () => openAccPicker("from"));
+    $("#pick-account2").addEventListener("click", () => openAccPicker("to"));
     $("#delete-entry").addEventListener("click", () => {
       if (editingId && confirm("Eliminare questa voce?")) {
         data.transactions = data.transactions.filter((t) => t.id !== editingId);
@@ -839,6 +935,10 @@
     $("#add-account").addEventListener("click", () => openAccountEditor(null));
     $("#am-save").addEventListener("click", saveAccount);
     $("#am-delete").addEventListener("click", deleteAccount);
+    $("#btn-set-pin").addEventListener("click", setPinFlow);
+    $("#btn-remove-pin").addEventListener("click", removePinFlow);
+    $("#btn-reminders").addEventListener("click", enableReminders);
+    $("#lock-pad").addEventListener("click", (e) => { const k = e.target.closest("[data-key]"); if (k) pressKey(k.dataset.key); });
     $("#add-goal").addEventListener("click", () => openGoalEditor(null));
     $("#gm-save").addEventListener("click", saveGoal);
     $("#gm-delete").addEventListener("click", deleteGoal);
@@ -871,6 +971,86 @@
     }
   }
 
+  // ---------- Blocco con PIN ----------
+  function settings() { if (!data.settings) data.settings = { pin: null, reminders: false }; return data.settings; }
+  function hashPin(s) { let h = 5381; for (const ch of String(s)) h = ((h << 5) + h + ch.charCodeAt(0)) >>> 0; return "h" + h; }
+
+  const lock = $("#lock-screen");
+  let pinEntry = "";
+  const PIN_LEN = 4;
+
+  function buildPad() {
+    const keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "⌫"];
+    $("#lock-pad").innerHTML = keys.map((k) =>
+      k === "" ? `<button class="blank" disabled></button>` : `<button data-key="${k}">${k}</button>`
+    ).join("");
+  }
+  function renderDots() {
+    $("#lock-dots").innerHTML = Array.from({ length: PIN_LEN }, (_, i) =>
+      `<span class="pd ${i < pinEntry.length ? "on" : ""}"></span>`).join("");
+  }
+  function showLock() {
+    pinEntry = ""; buildPad(); renderDots();
+    $("#lock-msg").textContent = "Inserisci il PIN";
+    lock.hidden = false;
+  }
+  function pressKey(k) {
+    if (k === "⌫") { pinEntry = pinEntry.slice(0, -1); renderDots(); return; }
+    if (pinEntry.length >= PIN_LEN) return;
+    pinEntry += k; renderDots();
+    if (pinEntry.length === PIN_LEN) {
+      setTimeout(() => {
+        if (hashPin(pinEntry) === settings().pin) { lock.hidden = true; }
+        else { lock.classList.add("shake"); $("#lock-msg").textContent = "PIN errato, riprova"; setTimeout(() => { lock.classList.remove("shake"); pinEntry = ""; renderDots(); }, 350); }
+      }, 120);
+    }
+  }
+  function setPinFlow() {
+    const a = prompt("Scegli un PIN di 4 cifre:");
+    if (a == null) return;
+    if (!/^\d{4}$/.test(a)) { toast("Il PIN deve essere di 4 cifre"); return; }
+    const bb = prompt("Ripeti il PIN:");
+    if (bb == null) return;
+    if (a !== bb) { toast("I PIN non coincidono"); return; }
+    settings().pin = hashPin(a); save(); syncSecurityButtons(); toast("PIN impostato");
+  }
+  function removePinFlow() {
+    if (confirm("Rimuovere il PIN?")) { settings().pin = null; save(); syncSecurityButtons(); toast("PIN rimosso"); }
+  }
+  function syncSecurityButtons() {
+    const has = !!settings().pin;
+    $("#btn-set-pin").textContent = has ? "Cambia PIN" : "Imposta PIN";
+    $("#btn-remove-pin").hidden = !has;
+  }
+
+  // ---------- Promemoria ----------
+  function enableReminders() {
+    if (!("Notification" in window)) { toast("Notifiche non supportate qui"); return; }
+    Notification.requestPermission().then((perm) => {
+      if (perm === "granted") { settings().reminders = true; save(); syncReminderButton(); toast("Promemoria attivati"); notifyDue(); }
+      else toast("Permesso negato");
+    }).catch(() => toast("Notifiche non disponibili"));
+  }
+  function syncReminderButton() {
+    const on = settings().reminders && ("Notification" in window) && Notification.permission === "granted";
+    $("#btn-reminders").textContent = on ? "Promemoria attivi ✓" : "Attiva promemoria";
+  }
+  function notifyDue() {
+    try {
+      if (!settings().reminders || !("Notification" in window) || Notification.permission !== "granted") return;
+      const today = todayIso();
+      const due = data.transactions.filter((t) => t.planned && !t.auto && t.date <= today);
+      if (!due.length) return;
+      const tot = due.reduce((s, t) => s + (t.kind === "income" ? 0 : t.amount), 0);
+      new Notification("Money Pro", {
+        body: due.length === 1
+          ? `Da pagare: ${due[0].description || "operazione"} (${money0(due[0].amount)})`
+          : `Hai ${due.length} operazioni da pagare (${money0(tot)})`,
+        icon: "icons/icon-192.png", badge: "icons/icon-192.png",
+      });
+    } catch (e) {}
+  }
+
   // ---------- Service worker ----------
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
@@ -883,4 +1063,8 @@
   autoSettle();
   render();
   updateFab("oggi");
+  syncSecurityButtons();
+  syncReminderButton();
+  if (settings().pin) showLock();
+  notifyDue();
 })();

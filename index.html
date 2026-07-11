@@ -84,6 +84,14 @@
         <div class="card-head"><h3>In scadenza</h3><span id="prev-total" class="card-side"></span></div>
         <div id="planned-list" class="list inset"></div>
       </div>
+      <div class="card" id="calendar-card">
+        <div class="cal-head">
+          <button id="cal-prev" class="cal-nav" aria-label="Mese precedente">‹</button>
+          <span id="cal-title" class="cal-title"></span>
+          <button id="cal-next" class="cal-nav" aria-label="Mese successivo">›</button>
+        </div>
+        <div class="cal-grid" id="cal-grid"></div>
+      </div>
       <div class="filters">
         <select id="filter-month" class="select-inline" aria-label="Filtra per mese"></select>
         <select id="filter-account" class="select-inline" aria-label="Filtra per conto"></select>
@@ -123,6 +131,19 @@
     <!-- ALTRO -->
     <section id="tab-altro" class="tab-panel">
       <header class="page-head simple"><h1>Altro</h1></header>
+      <div class="settings-block">
+        <h3>Sicurezza</h3>
+        <p class="muted">Proteggi l'app con un codice PIN.</p>
+        <div class="btn-row">
+          <button id="btn-set-pin" class="btn btn-secondary">Imposta PIN</button>
+          <button id="btn-remove-pin" class="btn btn-secondary" hidden>Rimuovi PIN</button>
+        </div>
+      </div>
+      <div class="settings-block">
+        <h3>Promemoria scadenze</h3>
+        <p class="muted">Ricevi un avviso all'apertura quando hai rate o bollette da pagare.</p>
+        <button id="btn-reminders" class="btn btn-secondary">Attiva promemoria</button>
+      </div>
       <div class="settings-block">
         <h3>Categorie</h3>
         <p class="muted">Gestisci le categorie con cui classifichi i movimenti.</p>
@@ -168,6 +189,7 @@
       <div class="seg" id="seg-kind">
         <button type="button" class="seg-btn active" data-kind="expense">Uscita</button>
         <button type="button" class="seg-btn" data-kind="income">Entrata</button>
+        <button type="button" class="seg-btn" data-kind="transfer">Trasferim.</button>
       </div>
 
       <form id="entry-form">
@@ -184,7 +206,13 @@
 
         <button type="button" id="pick-account" class="picker-row">
           <span class="picker-ico" id="acc-ico"></span>
-          <span class="picker-main"><span class="picker-label">Conto</span><span id="acc-name" class="picker-value">—</span></span>
+          <span class="picker-main"><span class="picker-label" id="acc-label">Conto</span><span id="acc-name" class="picker-value">—</span></span>
+          <span class="picker-arrow">›</span>
+        </button>
+
+        <button type="button" id="pick-account2" class="picker-row" hidden>
+          <span class="picker-ico" id="acc-ico2"></span>
+          <span class="picker-main"><span class="picker-label">A conto</span><span id="acc-name2" class="picker-value">—</span></span>
           <span class="picker-arrow">›</span>
         </button>
 
@@ -204,6 +232,7 @@
           </label>
         </div>
 
+        <div id="recur-fields">
         <div class="field">
           <span>Ripeti</span>
           <div class="chips" id="repeat-chips">
@@ -225,6 +254,7 @@
           <input type="checkbox" id="f-auto" class="switch" />
         </label>
         <p class="muted small">Se attiva, alla scadenza viene registrata da sola, senza doverla confermare.</p>
+        </div><!-- /recur-fields -->
 
         <button type="button" id="delete-entry" class="btn btn-danger full" hidden>Elimina</button>
       </form>
@@ -331,6 +361,15 @@
       </div>
       <div id="acc-picker-list" class="list"></div>
     </div>
+  </div>
+
+  <!-- SCHERMATA DI BLOCCO -->
+  <div id="lock-screen" class="lock" hidden>
+    <div class="lock-mark">€</div>
+    <div class="lock-title">Money Pro</div>
+    <div class="lock-msg" id="lock-msg">Inserisci il PIN</div>
+    <div class="lock-dots" id="lock-dots"></div>
+    <div class="lock-pad" id="lock-pad"></div>
   </div>
 
   <div id="toast" class="toast" hidden></div>
