@@ -1,5 +1,8 @@
-/* Money Pro service worker — cache offline */
-const CACHE = "moneypro-v2";
+/* Money Pro service worker — aggiornamento automatico + offline
+   Strategia: network-first (quando online prende sempre l'ultima versione),
+   con fallback alla cache quando sei offline. I dati restano in localStorage
+   e non vengono mai toccati dagli aggiornamenti. */
+const CACHE = "moneypro-v3";
 const ASSETS = [
   "./",
   "./index.html",
@@ -12,31 +15,35 @@ const ASSETS = [
 ];
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  e.waitUntil(
+    caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener("activate", (e) => {
   e.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
-    ).then(() => self.clients.claim())
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
   );
 });
 
 self.addEventListener("fetch", (e) => {
-  if (e.request.method !== "GET") return;
+  const req = e.request;
+  if (req.method !== "GET") return;
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return; // solo file dell'app
+
+  // Network-first: prova la rete, aggiorna la cache, altrimenti usa la cache
   e.respondWith(
-    caches.match(e.request).then((cached) => {
-      return (
-        cached ||
-        fetch(e.request)
-          .then((res) => {
-            const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(e.request, copy)).catch(() => {});
-            return res;
-          })
-          .catch(() => cached)
-      );
-    })
+    fetch(req)
+      .then((res) => {
+        const copy = res.clone();
+        caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+        return res;
+      })
+      .catch(() =>
+        caches.match(req).then((cached) => cached || caches.match("./index.html"))
+      )
   );
 });
