@@ -65,10 +65,10 @@
     <section id="tab-bilancio" class="tab-panel">
       <header class="page-head simple"><h1>Bilancio</h1><button class="head-add" data-add aria-label="Aggiungi">+</button></header>
       <div class="net-strip">
-        <span class="net-label">Patrimonio netto</span>
+        <span class="net-label">Totale</span>
         <span id="net-worth" class="net-value">€ 0,00</span>
       </div>
-      <div class="section-row"><h2>Conti</h2><span id="accounts-total" class="section-side"></span></div>
+      <div class="section-row"><h2>I miei conti</h2><span id="accounts-total" class="section-side"></span></div>
       <div id="accounts-list" class="list"></div>
       <button id="add-account" class="ghost-btn">+ Aggiungi conto</button>
     </section>
@@ -216,7 +216,43 @@
     </div>
   </div>
 
-  <!-- MODALE CONTI -->
+  <!-- MODALE GESTIONE CONTO -->
+  <div id="account-modal" class="modal" hidden>
+    <div class="modal-backdrop" data-close-am></div>
+    <div class="modal-card">
+      <div class="modal-head">
+        <button class="modal-cancel" data-close-am>Annulla</button>
+        <h3 id="am-title">Nuovo conto</h3>
+        <button class="modal-save" id="am-save">Salva</button>
+      </div>
+      <div class="amount-input">
+        <span class="cur">€</span>
+        <input id="am-balance" type="number" inputmode="decimal" step="0.01" placeholder="0,00" />
+      </div>
+      <p class="muted small center" style="margin:-8px 0 16px">Saldo attuale del conto</p>
+      <label class="field">
+        <span>Nome</span>
+        <input id="am-name" type="text" placeholder="Es. Revolut, Fideuram, BAPS" />
+      </label>
+      <div class="field">
+        <span>Tipo</span>
+        <div class="chips" id="am-type-chips">
+          <button type="button" class="chip active" data-type="bank">Banca</button>
+          <button type="button" class="chip" data-type="cash">Contanti</button>
+          <button type="button" class="chip" data-type="card">Carta</button>
+          <button type="button" class="chip" data-type="invest">Investimenti</button>
+          <button type="button" class="chip" data-type="liability">Debito</button>
+        </div>
+      </div>
+      <div class="field">
+        <span>Icona</span>
+        <div class="icon-choices" id="am-icon-row"></div>
+      </div>
+      <button type="button" id="am-delete" class="btn btn-danger full" hidden>Elimina conto</button>
+    </div>
+  </div>
+
+  <!-- MODALE SCELTA CONTO (nel movimento) -->
   <div id="acc-modal" class="modal" hidden>
     <div class="modal-backdrop" data-close-acc></div>
     <div class="modal-card">

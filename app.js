@@ -35,6 +35,9 @@
     trading: '<path d="M4 16l4-5 3 3 5-7M4 20h16M14 7h4v4"/>',
     refund: '<path d="M9 7L4 12l5 5M4 12h10a5 5 0 010 10h-1"/>',
     wallet: '<path d="M4 7a2 2 0 012-2h11a2 2 0 012 2v1h1a1 1 0 011 1v8a2 2 0 01-2 2H6a2 2 0 01-2-2z"/><circle cx="17" cy="12.5" r="1.2"/>',
+    bank: '<path d="M4 9l8-5 8 5M5 9v9M9 9v9M15 9v9M19 9v9M3 21h18M3 9h18"/>',
+    card: '<rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M3 10h18M7 15h4"/>',
+    coins: '<ellipse cx="9" cy="7" rx="5" ry="2.5"/><path d="M4 7v5c0 1.4 2.2 2.5 5 2.5s5-1.1 5-2.5V7"/><ellipse cx="15" cy="14" rx="5" ry="2.5"/><path d="M10 14v3c0 1.4 2.2 2.5 5 2.5s5-1.1 5-2.5v-3"/>',
     tag: '<path d="M4 4h7l9 9-7 7-9-9z"/><circle cx="8.5" cy="8.5" r="1.3"/>',
   };
 
@@ -275,10 +278,11 @@
     const box = $("#accounts-list");
     box.innerHTML = data.accounts.map((a) => {
       const b = accountBalance(a.id);
+      const meta = ACCOUNT_TYPES[a.type] || ACCOUNT_TYPES.payment;
       return `<div class="row" data-acc-edit="${a.id}">
-        <div class="row-ico">${svg(a.icon || "wallet")}</div>
+        <div class="row-ico">${svg(a.icon || meta.icon)}</div>
         <div class="row-main"><div class="row-title">${esc(a.name)}</div>
-          <div class="row-sub">${a.type === "liability" ? "Passività" : "Conto di pagamento"}</div></div>
+          <div class="row-sub">${meta.label}</div></div>
         <span class="acc-bal ${b < 0 ? "neg" : "pos"}">${money(b)}</span>
       </div>`;
     }).join("");
@@ -465,14 +469,84 @@
   }
   function closeAccPicker() { accModal.hidden = true; }
 
-  function newAccount() {
-    const name = prompt("Nome del nuovo conto (es. Carta, Conto Andrea):");
-    if (!name) return null;
-    const openStr = prompt("Saldo iniziale (€), lascia 0 se non lo sai:", "0");
-    const opening = parseFloat(String(openStr || "0").replace(",", ".")) || 0;
-    const acc = { id: "acc_" + uid(), name: name.trim(), icon: "wallet", type: "payment", opening };
-    data.accounts.push(acc); save();
-    return acc;
+  // ---------- Gestione conto (modale) ----------
+  const ACCOUNT_TYPES = {
+    bank: { label: "Banca", icon: "bank" },
+    cash: { label: "Contanti", icon: "wallet" },
+    card: { label: "Carta", icon: "card" },
+    invest: { label: "Investimenti", icon: "trading" },
+    liability: { label: "Debito", icon: "loan" },
+    payment: { label: "Conto", icon: "wallet" }, // compatibilità v2
+  };
+  const ACCOUNT_ICONS = ["bank", "wallet", "card", "trading", "coins", "savings", "loan", "home"];
+  const accountModal = $("#account-modal");
+  let accEditId = null;
+  let pendingAccSelect = false;
+  const accForm = { type: "bank", icon: "bank" };
+
+  function openAccountEditor(acc) {
+    accountModal.hidden = false;
+    if (acc) {
+      accEditId = acc.id;
+      accForm.type = acc.type && ACCOUNT_TYPES[acc.type] ? acc.type : "bank";
+      accForm.icon = acc.icon || ACCOUNT_TYPES[accForm.type].icon;
+      $("#am-title").textContent = "Modifica conto";
+      $("#am-name").value = acc.name;
+      $("#am-balance").value = round2(accountBalance(acc.id));
+      $("#am-delete").hidden = data.accounts.length <= 1;
+    } else {
+      accEditId = null;
+      accForm.type = "bank"; accForm.icon = "bank";
+      $("#am-title").textContent = "Nuovo conto";
+      $("#am-name").value = "";
+      $("#am-balance").value = "";
+      $("#am-delete").hidden = true;
+    }
+    syncAccType(); syncAccIcons();
+  }
+  function closeAccountEditor() { accountModal.hidden = true; }
+  function round2(n) { return Math.round(n * 100) / 100; }
+
+  function syncAccType() {
+    $$("#am-type-chips .chip").forEach((b) => b.classList.toggle("active", b.dataset.type === accForm.type));
+  }
+  function syncAccIcons() {
+    $("#am-icon-row").innerHTML = ACCOUNT_ICONS.map((ic) =>
+      `<button type="button" class="${ic === accForm.icon ? "active" : ""}" data-acc-icon="${ic}">${svg(ic)}</button>`
+    ).join("");
+  }
+
+  function saveAccount() {
+    const name = $("#am-name").value.trim();
+    if (!name) { toast("Dai un nome al conto"); return; }
+    const target = parseFloat(String($("#am-balance").value || "0").replace(",", ".")) || 0;
+    if (accEditId) {
+      const acc = accById(accEditId);
+      const current = accountBalance(accEditId);
+      acc.opening = round2((acc.opening || 0) + (target - current)); // porta il saldo al valore inserito
+      acc.name = name; acc.type = accForm.type; acc.icon = accForm.icon;
+      toast("Conto aggiornato");
+    } else {
+      const newAcc = { id: "acc_" + uid(), name, icon: accForm.icon, type: accForm.type, opening: target };
+      data.accounts.push(newAcc);
+      if (pendingAccSelect) { form.accountId = newAcc.id; syncPickers(); }
+      toast("Conto aggiunto");
+    }
+    pendingAccSelect = false;
+    save(); render(); closeAccountEditor();
+  }
+
+  function deleteAccount() {
+    if (!accEditId) return;
+    const hasTx = data.transactions.some((t) => t.accountId === accEditId);
+    const msg = hasTx
+      ? "Eliminare il conto? Verranno eliminati anche i movimenti collegati."
+      : "Eliminare questo conto?";
+    if (!confirm(msg)) return;
+    data.transactions = data.transactions.filter((t) => t.accountId !== accEditId);
+    data.accounts = data.accounts.filter((a) => a.id !== accEditId);
+    if (form.accountId === accEditId) form.accountId = data.accounts[0] ? data.accounts[0].id : null;
+    save(); render(); closeAccountEditor(); toast("Conto eliminato");
   }
 
   // ---------- Backup ----------
@@ -518,7 +592,13 @@
       if (edit) { const t = data.transactions.find((x) => x.id === edit.dataset.edit); if (t) openModal(t); return; }
 
       const accEdit = e.target.closest("[data-acc-edit]");
-      if (accEdit) { editAccount(accEdit.dataset.accEdit); return; }
+      if (accEdit) { openAccountEditor(accById(accEdit.dataset.accEdit)); return; }
+
+      const accIcon = e.target.closest("[data-acc-icon]");
+      if (accIcon) { accForm.icon = accIcon.dataset.accIcon; syncAccIcons(); return; }
+      const accType = e.target.closest("#am-type-chips .chip");
+      if (accType) { accForm.type = accType.dataset.type; accForm.icon = ACCOUNT_TYPES[accForm.type].icon; syncAccType(); syncAccIcons(); return; }
+      if (e.target.hasAttribute("data-close-am")) { closeAccountEditor(); return; }
 
       const catPick = e.target.closest("[data-cat]");
       if (catPick) {
@@ -532,7 +612,7 @@
 
       const accPick = e.target.closest("[data-acc-pick]");
       if (accPick) { form.accountId = accPick.dataset.accPick; syncPickers(); closeAccPicker(); return; }
-      if (e.target.closest("[data-acc-new]")) { const a = newAccount(); if (a) { form.accountId = a.id; syncPickers(); } openAccPicker(); return; }
+      if (e.target.closest("[data-acc-new]")) { pendingAccSelect = true; closeAccPicker(); openAccountEditor(null); return; }
 
       if (e.target.hasAttribute("data-close")) closeModal();
       if (e.target.hasAttribute("data-close-cat")) closeCatPicker();
@@ -559,7 +639,9 @@
       }
     });
 
-    $("#add-account").addEventListener("click", () => { if (newAccount()) render(); });
+    $("#add-account").addEventListener("click", () => openAccountEditor(null));
+    $("#am-save").addEventListener("click", saveAccount);
+    $("#am-delete").addEventListener("click", deleteAccount);
     $("#manage-cats").addEventListener("click", () => openCatPicker("manage"));
     $("#filter-month").addEventListener("change", renderMovimenti);
     $("#filter-account").addEventListener("change", renderMovimenti);
@@ -572,16 +654,6 @@
     });
   }
 
-  function editAccount(id) {
-    const a = accById(id); if (!a) return;
-    const name = prompt("Nome conto:", a.name);
-    if (name === null) return;
-    if (name.trim()) a.name = name.trim();
-    const openStr = prompt("Saldo iniziale (€):", a.opening);
-    if (openStr !== null) a.opening = parseFloat(String(openStr).replace(",", ".")) || 0;
-    if (data.accounts.length > 1 && confirm("Vuoi ELIMINARE questo conto? (Annulla per tenerlo)") === false) { /* keep */ }
-    render();
-  }
   function addCategory(kind) {
     const name = prompt("Nome nuova categoria:");
     if (!name || !name.trim()) return;
