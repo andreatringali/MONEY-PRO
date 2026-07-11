@@ -235,14 +235,22 @@
     const fore = $("#dash-fore"); fore.textContent = money0(f.future);
     fore.classList.toggle("neg", f.future < 0);
 
-    // Conti (compatti)
+    // Conti — grafico a barre orizzontali
     $("#dash-networth").textContent = "Netto " + money(netWorth());
     const daccBox = $("#dash-accounts");
-    daccBox.innerHTML = data.accounts.map((a) => {
-      const b = accountBalance(a.id);
-      return `<div class="row" data-goto="bilancio"><div class="row-ico">${svg(a.icon || "wallet")}</div>
-        <div class="row-main"><div class="row-title">${esc(a.name)}</div></div>
-        <span class="acc-bal ${b < 0 ? "neg" : "pos"}">${money(b)}</span></div>`;
+    const balances = data.accounts.map((a) => ({ a, b: accountBalance(a.id) }));
+    const maxAbs = Math.max(1, ...balances.map((x) => Math.abs(x.b)));
+    daccBox.innerHTML = balances.map(({ a, b }) => {
+      const pct = Math.max(2, Math.abs(b) / maxAbs * 100);
+      const cls = b < 0 ? "neg" : "pos";
+      return `<div class="acc-bar-row" data-goto="bilancio">
+        <div class="acc-bar-top">
+          <span class="abr-ico">${svg(a.icon || "wallet")}</span>
+          <span class="abr-name">${esc(a.name)}</span>
+          <b class="abr-val ${cls}">${money(b)}</b>
+        </div>
+        <div class="acc-bar"><i class="${cls}" style="width:${pct}%"></i></div>
+      </div>`;
     }).join("");
 
     // Top spese del mese
