@@ -188,6 +188,7 @@
   function render() {
     renderNavIcons();
     renderToday();
+    renderPlanned();
     renderBilancio();
     renderMovimenti();
     renderResoconti();
@@ -248,12 +249,17 @@
     }).join("") : `<div class="empty">Nessuna spesa registrata questo mese.</div>`;
 
     renderGoals();
+  }
 
+  // In scadenza / da pagare — vive nella tab Giornaliero
+  function renderPlanned() {
     const planned = plannedSorted();
     const today = todayIso();
+    const card = $("#scadenze-card");
+    if (card) card.style.display = planned.length ? "" : "none";
     $("#prev-total").textContent = planned.length ? planned.length + " voci" : "";
     const box = $("#planned-list");
-    if (!planned.length) { box.innerHTML = `<div class="empty">Nessuna operazione programmata.<br>Tocca + e attiva "Da pagare".</div>`; return; }
+    if (!box) return;
     box.innerHTML = planned.map((t) => {
       const c = catById(t.categoryId);
       const overdue = t.date < today;
@@ -759,6 +765,7 @@
       const tab = btn.dataset.tab;
       $$(".tab-btn").forEach((b) => b.classList.toggle("active", b === btn));
       $$(".tab-panel").forEach((p) => p.classList.toggle("active", p.id === "tab-" + tab));
+      updateFab(tab);
       window.scrollTo(0, 0);
     }));
 
@@ -869,7 +876,11 @@
     window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
   }
 
+  // La Dashboard è solo consuntiva: nessun inserimento, niente FAB
+  function updateFab(tab) { $("#fab").style.display = tab === "oggi" ? "none" : ""; }
+
   bind();
   autoSettle();
   render();
+  updateFab("oggi");
 })();
