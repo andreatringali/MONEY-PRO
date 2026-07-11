@@ -51,6 +51,9 @@
         </div>
       </div>
 
+      <div class="section-row"><h2>Obiettivi</h2><button id="add-goal" class="link-btn">Aggiungi</button></div>
+      <div id="goals-list" class="goals"></div>
+
       <div class="section-row"><h2>In scadenza</h2><span id="prev-total" class="section-side"></span></div>
       <div id="planned-list" class="list"></div>
 
@@ -68,8 +71,7 @@
         <span class="net-label">Totale</span>
         <span id="net-worth" class="net-value">€ 0,00</span>
       </div>
-      <div class="section-row"><h2>I miei conti</h2><span id="accounts-total" class="section-side"></span></div>
-      <div id="accounts-list" class="list"></div>
+      <div id="accounts-list"></div>
       <button id="add-account" class="ghost-btn">+ Aggiungi conto</button>
     </section>
 
@@ -213,6 +215,32 @@
         <span style="width:56px"></span>
       </div>
       <div id="cat-grid" class="cat-grid"></div>
+    </div>
+  </div>
+
+  <!-- MODALE OBIETTIVO -->
+  <div id="goal-modal" class="modal" hidden>
+    <div class="modal-backdrop" data-close-gm></div>
+    <div class="modal-card">
+      <div class="modal-head">
+        <button class="modal-cancel" data-close-gm>Annulla</button>
+        <h3 id="gm-title">Nuovo obiettivo</h3>
+        <button class="modal-save" id="gm-save">Salva</button>
+      </div>
+      <div class="amount-input">
+        <span class="cur">€</span>
+        <input id="gm-target" type="number" inputmode="decimal" step="0.01" placeholder="0,00" />
+      </div>
+      <p class="muted small center" style="margin:-8px 0 16px">Importo da raggiungere</p>
+      <label class="field">
+        <span>Nome</span>
+        <input id="gm-name" type="text" placeholder="Es. Fondo emergenza, Vacanza, 1 milione" />
+      </label>
+      <div class="field">
+        <span>Misura il progresso su</span>
+        <div class="chips" id="gm-source"></div>
+      </div>
+      <button type="button" id="gm-delete" class="btn btn-danger full" hidden>Elimina obiettivo</button>
     </div>
   </div>
 

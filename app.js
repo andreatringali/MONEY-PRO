@@ -55,6 +55,7 @@
       accounts: [{ id: "acc_cash", name: "Contanti", icon: "wallet", type: "payment", opening: 0 }],
       categories: defaultCategories(),
       transactions: [],
+      goals: [],
     };
   }
   function defaultCategories() {
@@ -246,6 +247,8 @@
         <span class="cbbar"><i style="width:${v / tmax * 100}%"></i></span></div>`;
     }).join("") : `<div class="empty">Nessuna spesa registrata questo mese.</div>`;
 
+    renderGoals();
+
     const planned = plannedSorted();
     const today = todayIso();
     $("#prev-total").textContent = planned.length ? planned.length + " voci" : "";
@@ -273,19 +276,58 @@
 
   function renderBilancio() {
     $("#net-worth").textContent = money(netWorth());
-    const payment = data.accounts.filter((a) => a.type !== "liability");
-    $("#accounts-total").textContent = money(payment.reduce((s, a) => s + accountBalance(a.id), 0));
+    const groups = [
+      { label: "Conti di pagamento", types: ["bank", "cash", "card", "payment"] },
+      { label: "Investimenti", types: ["invest"] },
+      { label: "Passività", types: ["liability"] },
+    ];
     const box = $("#accounts-list");
-    box.innerHTML = data.accounts.map((a) => {
-      const b = accountBalance(a.id);
-      const meta = ACCOUNT_TYPES[a.type] || ACCOUNT_TYPES.payment;
-      return `<div class="row" data-acc-edit="${a.id}">
-        <div class="row-ico">${svg(a.icon || meta.icon)}</div>
-        <div class="row-main"><div class="row-title">${esc(a.name)}</div>
-          <div class="row-sub">${meta.label}</div></div>
-        <span class="acc-bal ${b < 0 ? "neg" : "pos"}">${money(b)}</span>
+    let html = "";
+    for (const g of groups) {
+      const accs = data.accounts.filter((a) => g.types.includes(a.type || "payment"));
+      if (!accs.length) continue;
+      const sum = accs.reduce((s, a) => s + accountBalance(a.id), 0);
+      html += `<div class="acc-group">
+        <div class="acc-group-head"><span class="agh-label">${g.label}</span><span class="agh-sum">${money(sum)}</span></div>
+        <div class="list">` +
+        accs.map((a) => {
+          const b = accountBalance(a.id);
+          const meta = ACCOUNT_TYPES[a.type] || ACCOUNT_TYPES.payment;
+          return `<div class="row" data-acc-edit="${a.id}">
+            <div class="row-ico">${svg(a.icon || meta.icon)}</div>
+            <div class="row-main"><div class="row-title">${esc(a.name)}</div>
+              <div class="row-sub">${meta.label}</div></div>
+            <span class="acc-bal ${b < 0 ? "neg" : "pos"}">${money(b)}</span>
+          </div>`;
+        }).join("") +
+        `</div></div>`;
+    }
+    box.innerHTML = html;
+  }
+
+  function renderGoals() {
+    const box = $("#goals-list");
+    if (!data.goals || !data.goals.length) {
+      box.innerHTML = `<div class="goals-empty">Nessun obiettivo. Tocca "Aggiungi" per crearne uno.</div>`;
+      return;
+    }
+    box.innerHTML = data.goals.map((g) => {
+      const cur = goalCurrent(g);
+      const pct = g.target > 0 ? Math.max(0, Math.min(100, (cur / g.target) * 100)) : 0;
+      const remaining = g.target - cur;
+      const srcLabel = g.source === "total" ? "Totale" : (accById(g.source) ? accById(g.source).name : "Totale");
+      return `<div class="goal" data-goal-edit="${g.id}">
+        <div class="goal-top"><span class="goal-name">${esc(g.name)}</span>
+          <span class="goal-target">obiettivo ${money0(g.target)}</span></div>
+        <div class="goal-cur ${cur < 0 ? "neg" : "pos"}">${money(cur)}</div>
+        <div class="goal-bar"><i style="width:${pct}%"></i></div>
+        <div class="goal-foot"><span>${srcLabel}</span>
+          ${remaining <= 0 ? '<span class="done">Raggiunto! 🎉</span>' : `<span>${Math.floor(pct)}% · manca ${money0(remaining)}</span>`}</div>
       </div>`;
     }).join("");
+  }
+  function goalCurrent(g) {
+    return g.source === "total" || !accById(g.source) ? netWorth() : accountBalance(g.source);
   }
 
   function renderMovimenti() {
@@ -549,6 +591,60 @@
     save(); render(); closeAccountEditor(); toast("Conto eliminato");
   }
 
+  // ---------- Obiettivi (modale) ----------
+  const goalModal = $("#goal-modal");
+  let goalEditId = null;
+  const goalForm = { source: "total" };
+
+  function openGoalEditor(goal) {
+    goalModal.hidden = false;
+    if (goal) {
+      goalEditId = goal.id;
+      goalForm.source = goal.source || "total";
+      $("#gm-title").textContent = "Modifica obiettivo";
+      $("#gm-name").value = goal.name;
+      $("#gm-target").value = goal.target;
+      $("#gm-delete").hidden = false;
+    } else {
+      goalEditId = null;
+      goalForm.source = "total";
+      $("#gm-title").textContent = "Nuovo obiettivo";
+      $("#gm-name").value = "";
+      $("#gm-target").value = "";
+      $("#gm-delete").hidden = true;
+    }
+    renderGoalSources();
+  }
+  function closeGoalEditor() { goalModal.hidden = true; }
+  function renderGoalSources() {
+    const chips = [`<button type="button" class="chip ${goalForm.source === "total" ? "active" : ""}" data-gsource="total">Totale</button>`]
+      .concat(data.accounts.map((a) =>
+        `<button type="button" class="chip ${goalForm.source === a.id ? "active" : ""}" data-gsource="${a.id}">${esc(a.name)}</button>`));
+    $("#gm-source").innerHTML = chips.join("");
+  }
+  function saveGoal() {
+    const name = $("#gm-name").value.trim();
+    const target = parseFloat(String($("#gm-target").value || "0").replace(",", ".")) || 0;
+    if (!name) { toast("Dai un nome all'obiettivo"); return; }
+    if (!(target > 0)) { toast("Inserisci l'importo da raggiungere"); return; }
+    if (!data.goals) data.goals = [];
+    if (goalEditId) {
+      const g = data.goals.find((x) => x.id === goalEditId);
+      Object.assign(g, { name, target, source: goalForm.source });
+      toast("Obiettivo aggiornato");
+    } else {
+      data.goals.push({ id: "goal_" + uid(), name, target, source: goalForm.source });
+      toast("Obiettivo creato");
+    }
+    save(); render(); closeGoalEditor();
+  }
+  function deleteGoal() {
+    if (goalEditId && confirm("Eliminare questo obiettivo?")) {
+      data.goals = data.goals.filter((g) => g.id !== goalEditId);
+      save(); render(); closeGoalEditor(); toast("Obiettivo eliminato");
+    }
+  }
+
   // ---------- Backup ----------
   function exportData() {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
@@ -593,6 +689,12 @@
 
       const accEdit = e.target.closest("[data-acc-edit]");
       if (accEdit) { openAccountEditor(accById(accEdit.dataset.accEdit)); return; }
+
+      const goalEdit = e.target.closest("[data-goal-edit]");
+      if (goalEdit) { openGoalEditor((data.goals || []).find((g) => g.id === goalEdit.dataset.goalEdit)); return; }
+      const gsrc = e.target.closest("[data-gsource]");
+      if (gsrc) { goalForm.source = gsrc.dataset.gsource; renderGoalSources(); return; }
+      if (e.target.hasAttribute("data-close-gm")) { closeGoalEditor(); return; }
 
       const accIcon = e.target.closest("[data-acc-icon]");
       if (accIcon) { accForm.icon = accIcon.dataset.accIcon; syncAccIcons(); return; }
@@ -642,6 +744,9 @@
     $("#add-account").addEventListener("click", () => openAccountEditor(null));
     $("#am-save").addEventListener("click", saveAccount);
     $("#am-delete").addEventListener("click", deleteAccount);
+    $("#add-goal").addEventListener("click", () => openGoalEditor(null));
+    $("#gm-save").addEventListener("click", saveGoal);
+    $("#gm-delete").addEventListener("click", deleteGoal);
     $("#manage-cats").addEventListener("click", () => openCatPicker("manage"));
     $("#filter-month").addEventListener("change", renderMovimenti);
     $("#filter-account").addEventListener("change", renderMovimenti);
