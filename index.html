@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f766e" />
+  <meta name="description" content="Money Pro - gestisci la tua cassa: entrate, uscite, rate fisse e mutui." />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="styles.css" />
+  <title>Money Pro</title>
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-mark">€</span>
+      <span class="brand-name">Money Pro</span>
+    </div>
+    <div class="balance-hero">
+      <span class="balance-label">Saldo cassa</span>
+      <span id="hero-balance" class="balance-value">€ 0,00</span>
+    </div>
+  </header>
+
+  <main id="app">
+    <!-- Riepilogo -->
+    <section id="tab-riepilogo" class="tab-panel active">
+      <div class="cards">
+        <div class="card income">
+          <span class="card-label">Entrate (mese)</span>
+          <span id="stat-income" class="card-value">€ 0,00</span>
+        </div>
+        <div class="card expense">
+          <span class="card-label">Uscite (mese)</span>
+          <span id="stat-expense" class="card-value">€ 0,00</span>
+        </div>
+        <div class="card commit">
+          <span class="card-label">Impegni fissi / mese</span>
+          <span id="stat-commit" class="card-value">€ 0,00</span>
+        </div>
+        <div class="card net">
+          <span class="card-label">Bilancio mese</span>
+          <span id="stat-net" class="card-value">€ 0,00</span>
+        </div>
+      </div>
+
+      <div class="section-block">
+        <h2>Rate in scadenza</h2>
+        <div id="due-list" class="list"></div>
+      </div>
+
+      <div class="section-block">
+        <h2>Ultimi movimenti</h2>
+        <div id="recent-list" class="list"></div>
+      </div>
+    </section>
+
+    <!-- Movimenti -->
+    <section id="tab-movimenti" class="tab-panel">
+      <div class="toolbar">
+        <h2>Movimenti</h2>
+        <select id="filter-month" class="select-inline" aria-label="Filtra per mese"></select>
+      </div>
+      <div id="movements-list" class="list"></div>
+    </section>
+
+    <!-- Rate fisse -->
+    <section id="tab-rate" class="tab-panel">
+      <div class="toolbar">
+        <h2>Rate fisse e mutui</h2>
+      </div>
+      <div id="recurring-list" class="list"></div>
+    </section>
+
+    <!-- Impostazioni -->
+    <section id="tab-impostazioni" class="tab-panel">
+      <h2>Impostazioni</h2>
+      <div class="settings-block">
+        <h3>Backup dei dati</h3>
+        <p class="muted">
+          I dati sono salvati solo su questo dispositivo. Esporta un file di backup
+          per spostarli su un altro dispositivo (es. dal cellulare al PC).
+        </p>
+        <div class="btn-row">
+          <button id="btn-export" class="btn btn-secondary">Esporta backup</button>
+          <button id="btn-import" class="btn btn-secondary">Importa backup</button>
+          <input id="import-file" type="file" accept="application/json" hidden />
+        </div>
+      </div>
+      <div class="settings-block danger">
+        <h3>Zona pericolosa</h3>
+        <button id="btn-reset" class="btn btn-danger">Cancella tutti i dati</button>
+      </div>
+      <p class="muted center">Money Pro · dati locali · funziona offline</p>
+    </section>
+  </main>
+
+  <button id="fab" class="fab" aria-label="Aggiungi">+</button>
+
+  <nav class="tabbar">
+    <button class="tab-btn active" data-tab="riepilogo">
+      <span class="tab-ico">◎</span><span>Riepilogo</span>
+    </button>
+    <button class="tab-btn" data-tab="movimenti">
+      <span class="tab-ico">⇅</span><span>Movimenti</span>
+    </button>
+    <button class="tab-btn" data-tab="rate">
+      <span class="tab-ico">◷</span><span>Rate</span>
+    </button>
+    <button class="tab-btn" data-tab="impostazioni">
+      <span class="tab-ico">⚙</span><span>Impostazioni</span>
+    </button>
+  </nav>
+
+  <!-- Modale: nuovo movimento / rata -->
+  <div id="modal" class="modal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="modal-title">Nuovo movimento</h3>
+        <button class="modal-close" data-close aria-label="Chiudi">×</button>
+      </div>
+
+      <div class="seg" id="seg-mode">
+        <button type="button" class="seg-btn active" data-mode="movimento">Movimento</button>
+        <button type="button" class="seg-btn" data-mode="rata">Rata fissa / Mutuo</button>
+      </div>
+
+      <form id="entry-form">
+        <div class="seg" id="seg-kind">
+          <button type="button" class="seg-btn active" data-kind="expense">Uscita</button>
+          <button type="button" class="seg-btn" data-kind="income">Entrata</button>
+        </div>
+
+        <label class="field">
+          <span>Importo (€)</span>
+          <input id="f-amount" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0,00" required />
+        </label>
+
+        <label class="field">
+          <span>Descrizione</span>
+          <input id="f-desc" type="text" placeholder="Es. Spesa, Stipendio, Mutuo casa" required />
+        </label>
+
+        <label class="field">
+          <span>Categoria</span>
+          <input id="f-cat" type="text" list="cat-list" placeholder="Es. Alimentari" />
+          <datalist id="cat-list"></datalist>
+        </label>
+
+        <!-- Campi solo movimento -->
+        <label class="field only-movimento">
+          <span>Data</span>
+          <input id="f-date" type="date" required />
+        </label>
+
+        <!-- Campi solo rata -->
+        <label class="field only-rata" hidden>
+          <span>Giorno di addebito (1-28)</span>
+          <input id="f-day" type="number" min="1" max="28" step="1" placeholder="Es. 5" />
+        </label>
+        <label class="field only-rata" hidden>
+          <span>Prima scadenza</span>
+          <input id="f-start" type="month" />
+        </label>
+        <label class="field only-rata" hidden>
+          <span>Numero rate totali <em class="muted">(vuoto = a tempo indeterminato)</em></span>
+          <input id="f-months" type="number" min="1" step="1" placeholder="Es. 120 per un mutuo" />
+        </label>
+
+        <div class="btn-row">
+          <button type="button" class="btn btn-secondary" data-close>Annulla</button>
+          <button type="submit" class="btn btn-primary">Salva</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
