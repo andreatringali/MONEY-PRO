@@ -6,6 +6,7 @@
   // ---------- Icone (SVG inline) ----------
   const ICONS = {
     today: '<rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9h18M8 3v3M16 3v3"/>',
+    dashboard: '<rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="5" rx="1.5"/><rect x="13" y="10" width="8" height="11" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/>',
     scale: '<path d="M12 3v17M6 20h12M6 7h12M6 7L3 13h6zM18 7l-3 6h6zM3 13a3 3 0 006 0M15 13a3 3 0 006 0"/>',
     swap: '<path d="M7 4v13M7 4L4 7.5M7 4l3 3.5M17 20V7M17 20l-3-3.5M17 20l3-3.5"/>',
     chart: '<path d="M5 20v-5M10 20v-10M15 20v-14M20 20v-8" stroke-width="2.4"/><path d="M3 20h18"/>',
@@ -205,6 +206,42 @@
     const f = forecast30();
     $("#hero-forecast").textContent = f.delta
       ? `Tra 30 giorni previsto: ${money(f.future)}` : "";
+
+    // Stat cards
+    const pk = currentPeriod();
+    const { income, expense } = monthTotals(pk);
+    $("#dash-month").textContent = new Date().toLocaleDateString("it-IT", { month: "long" });
+    $("#dash-in").textContent = money0(income);
+    $("#dash-out").textContent = money0(expense);
+    const net = $("#dash-net"); net.textContent = (income - expense >= 0 ? "" : "") + money0(income - expense);
+    net.classList.toggle("neg", income - expense < 0);
+    const fore = $("#dash-fore"); fore.textContent = money0(f.future);
+    fore.classList.toggle("neg", f.future < 0);
+
+    // Conti (compatti)
+    $("#dash-networth").textContent = "Netto " + money(netWorth());
+    const daccBox = $("#dash-accounts");
+    daccBox.innerHTML = data.accounts.map((a) => {
+      const b = accountBalance(a.id);
+      return `<div class="row" data-goto="bilancio"><div class="row-ico">${svg(a.icon || "wallet")}</div>
+        <div class="row-main"><div class="row-title">${esc(a.name)}</div></div>
+        <span class="acc-bal ${b < 0 ? "neg" : "pos"}">${money(b)}</span></div>`;
+    }).join("");
+
+    // Top spese del mese
+    const byCat = {};
+    for (const t of data.transactions) {
+      if (t.planned || t.kind !== "expense" || periodKey(t.date) !== pk) continue;
+      byCat[t.categoryId] = (byCat[t.categoryId] || 0) + t.amount;
+    }
+    const top = Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 3);
+    const tmax = top.length ? top[0][1] : 1;
+    $("#dash-topcat").innerHTML = top.length ? top.map(([cid, v]) => {
+      const c = catById(cid);
+      return `<div class="cat-line"><span class="cbico">${svg(c ? c.icon : "tag")}</span>
+        <span>${c ? esc(c.name) : "—"}</span><b>${money0(v)}</b>
+        <span class="cbbar"><i style="width:${v / tmax * 100}%"></i></span></div>`;
+    }).join("") : `<div class="empty">Nessuna spesa registrata questo mese.</div>`;
 
     const planned = plannedSorted();
     const today = todayIso();
@@ -470,6 +507,9 @@
 
     document.addEventListener("click", (e) => {
       if (e.target.closest("[data-add]")) { openModal(null); return; }
+
+      const goto = e.target.closest("[data-goto]");
+      if (goto) { const t = $(`.tab-btn[data-tab="${goto.dataset.goto}"]`); if (t) t.click(); return; }
 
       const pay = e.target.closest("[data-pay]");
       if (pay) { e.stopPropagation(); payPlanned(pay.dataset.pay); return; }

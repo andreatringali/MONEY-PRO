@@ -32,8 +32,33 @@
         <span id="hero-forecast" class="hero-forecast"></span>
       </div>
 
-      <div class="section-row"><h2>Previste</h2><span id="prev-total" class="section-side"></span></div>
+      <div class="stat-cards">
+        <div class="stat-card in">
+          <span class="sc-label">Entrate <em id="dash-month"></em></span>
+          <b id="dash-in" class="sc-value">€ 0</b>
+        </div>
+        <div class="stat-card out">
+          <span class="sc-label">Uscite <em></em></span>
+          <b id="dash-out" class="sc-value">€ 0</b>
+        </div>
+        <div class="stat-card net">
+          <span class="sc-label">Bilancio mese</span>
+          <b id="dash-net" class="sc-value">€ 0</b>
+        </div>
+        <div class="stat-card fore">
+          <span class="sc-label">Previsto 30 gg</span>
+          <b id="dash-fore" class="sc-value">€ 0</b>
+        </div>
+      </div>
+
+      <div class="section-row"><h2>In scadenza</h2><span id="prev-total" class="section-side"></span></div>
       <div id="planned-list" class="list"></div>
+
+      <div class="section-row"><h2>Conti</h2><span id="dash-networth" class="section-side"></span></div>
+      <div id="dash-accounts" class="list"></div>
+
+      <div class="section-row"><h2>Spese principali del mese</h2></div>
+      <div id="dash-topcat" class="cat-breakdown"></div>
     </section>
 
     <!-- BILANCIO -->
@@ -107,7 +132,7 @@
   <button id="fab" class="fab" data-add aria-label="Aggiungi">+</button>
 
   <nav class="tabbar">
-    <button class="tab-btn active" data-tab="oggi"><span class="tab-ico" data-i="today"></span><span>Oggi</span></button>
+    <button class="tab-btn active" data-tab="oggi"><span class="tab-ico" data-i="dashboard"></span><span>Dashboard</span></button>
     <button class="tab-btn" data-tab="bilancio"><span class="tab-ico" data-i="scale"></span><span>Bilancio</span></button>
     <button class="tab-btn" data-tab="movimenti"><span class="tab-ico" data-i="swap"></span><span>Movimenti</span></button>
     <button class="tab-btn" data-tab="resoconti"><span class="tab-ico" data-i="chart"></span><span>Resoconti</span></button>
