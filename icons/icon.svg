@@ -1,4 +1,23 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
   <rect width="512" height="512" rx="112" fill="#B4573F"/>
-  <text x="256" y="352" font-family="Georgia, 'Times New Roman', serif" font-size="300" font-weight="700" fill="#F5F1E8" text-anchor="middle">€</text>
+  <!-- moneta che cade -->
+  <circle cx="248" cy="132" r="34" fill="#F5F1E8"/>
+  <text x="248" y="146" font-family="Georgia, 'Times New Roman', serif" font-size="40" font-weight="700" fill="#B4573F" text-anchor="middle">€</text>
+  <!-- coda -->
+  <path d="M104 306 q-26 4 -24 30 q3 18 24 14" fill="none" stroke="#F5F1E8" stroke-width="15" stroke-linecap="round"/>
+  <!-- corpo, muso, orecchio, zampe -->
+  <g fill="#F5F1E8">
+    <ellipse cx="252" cy="300" rx="150" ry="106"/>
+    <ellipse cx="372" cy="308" rx="54" ry="46"/>
+    <path d="M150 226 q-14 -64 46 -74 q8 42 -14 70 z"/>
+    <rect x="192" y="378" width="44" height="46" rx="14"/>
+    <rect x="292" y="378" width="44" height="46" rx="14"/>
+  </g>
+  <!-- fessura, occhio, narici -->
+  <g fill="#B4573F">
+    <rect x="214" y="190" width="78" height="17" rx="8.5"/>
+    <circle cx="308" cy="262" r="10"/>
+    <circle cx="356" cy="308" r="7.5"/>
+    <circle cx="388" cy="308" r="7.5"/>
+  </g>
 </svg>

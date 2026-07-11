@@ -1,4 +1,4 @@
-# Money Pro 💶
+# Tasca 🐷
 
 Web app (PWA) per tenere sotto controllo la tua cassa, ispirata alle app di gestione
 finanziaria personale: **conti, entrate, uscite, operazioni programmate, rate e mutui**.

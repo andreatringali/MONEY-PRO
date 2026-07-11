@@ -1,8 +1,8 @@
-/* Money Pro service worker — aggiornamento automatico + offline
+/* Tasca service worker — aggiornamento automatico + offline
    Strategia: network-first (quando online prende sempre l'ultima versione),
    con fallback alla cache quando sei offline. I dati restano in localStorage
    e non vengono mai toccati dagli aggiornamenti. */
-const CACHE = "moneypro-v4";
+const CACHE = "moneypro-v5";
 const ASSETS = [
   "./",
   "./index.html",

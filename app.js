@@ -1,4 +1,4 @@
-/* Money Pro — gestione cassa personale (dati locali)
+/* Tasca — gestione cassa personale (dati locali)
    Conti, categorie con icone, movimenti e operazioni programmate. */
 (function () {
   "use strict";
@@ -1042,7 +1042,7 @@
       const due = data.transactions.filter((t) => t.planned && !t.auto && t.date <= today);
       if (!due.length) return;
       const tot = due.reduce((s, t) => s + (t.kind === "income" ? 0 : t.amount), 0);
-      new Notification("Money Pro", {
+      new Notification("Tasca", {
         body: due.length === 1
           ? `Da pagare: ${due[0].description || "operazione"} (${money0(due[0].amount)})`
           : `Hai ${due.length} operazioni da pagare (${money0(tot)})`,

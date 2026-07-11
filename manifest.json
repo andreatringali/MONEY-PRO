@@ -1,6 +1,6 @@
 {
-  "name": "Money Pro — Gestione Cassa",
-  "short_name": "Money Pro",
+  "name": "Tasca — Gestione Cassa",
+  "short_name": "Tasca",
   "description": "Tieni traccia di entrate, uscite, rate fisse e mutui. I dati restano sul tuo dispositivo.",
   "start_url": "./index.html",
   "scope": "./",
