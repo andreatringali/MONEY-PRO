@@ -97,6 +97,14 @@
         <div class="io-net">Bilancio del mese: <b id="rep-net">€ 0</b></div>
       </div>
       <div class="report-card">
+        <div class="card-head">
+          <h3>Budget del mese</h3>
+          <button id="edit-budget" class="link-btn">Imposta</button>
+        </div>
+        <div id="budget-list" class="budget-list"></div>
+      </div>
+
+      <div class="report-card">
         <h3>Uscite per categoria</h3>
         <div id="cat-breakdown" class="cat-breakdown"></div>
       </div>
@@ -179,10 +187,16 @@
           <input id="f-desc" type="text" placeholder="Es. Spesa Esselunga, Stipendio" />
         </label>
 
-        <label class="field">
-          <span>Data</span>
-          <input id="f-date" type="date" required />
-        </label>
+        <div class="field-row">
+          <label class="field">
+            <span>Data</span>
+            <input id="f-date" type="date" required />
+          </label>
+          <label class="field">
+            <span>Ora <em class="muted">(facolt.)</em></span>
+            <input id="f-time" type="time" />
+          </label>
+        </div>
 
         <div class="field">
           <span>Ripeti</span>
@@ -200,6 +214,12 @@
         </label>
         <p class="muted small">Se attiva, la registri ora come "prevista" e la confermi con "Segna come pagata" quando la paghi davvero.</p>
 
+        <label class="switch-row" id="auto-row">
+          <span>Automatica</span>
+          <input type="checkbox" id="f-auto" class="switch" />
+        </label>
+        <p class="muted small">Se attiva, alla scadenza viene registrata da sola, senza doverla confermare.</p>
+
         <button type="button" id="delete-entry" class="btn btn-danger full" hidden>Elimina</button>
       </form>
     </div>
@@ -215,6 +235,20 @@
         <span style="width:56px"></span>
       </div>
       <div id="cat-grid" class="cat-grid"></div>
+    </div>
+  </div>
+
+  <!-- MODALE BUDGET -->
+  <div id="budget-modal" class="modal" hidden>
+    <div class="modal-backdrop" data-close-bm></div>
+    <div class="modal-card">
+      <div class="modal-head">
+        <button class="modal-cancel" data-close-bm>Annulla</button>
+        <h3>Budget mensile</h3>
+        <button class="modal-save" id="bm-save">Salva</button>
+      </div>
+      <p class="muted small" style="margin-bottom:14px">Imposta un limite di spesa mensile per categoria. Lascia 0 per non usarlo.</p>
+      <div id="bm-list" class="bm-list"></div>
     </div>
   </div>
 

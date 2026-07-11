@@ -264,8 +264,8 @@
         <div class="row-main">
           <div class="row-title">${esc(t.description || (c ? c.name : "Operazione"))}</div>
           <div class="row-sub ${overdue ? "warn" : ""}">
-            ${overdue ? '<span class="warn-ico">!</span> Scaduta ·' : ""} ${cap(fmtDateShort(t.date))}
-            ${t.repeat !== "none" ? "· ripete" : ""}
+            ${overdue ? '<span class="warn-ico">!</span> Scaduta ·' : ""} ${cap(fmtDateShort(t.date))}${t.time ? " " + t.time : ""}
+            ${t.repeat !== "none" ? "· ripete" : ""}${t.auto ? ' · <span class="pill auto">auto</span>' : ""}
           </div>
         </div>
         <span class="amount-badge ${badgeClass}">${sign}${money0(t.amount)}</span>
@@ -353,7 +353,7 @@
       return `<div class="row" data-edit="${t.id}">
         <div class="row-ico">${svg(c ? c.icon : "tag")}</div>
         <div class="row-main"><div class="row-title">${esc(t.description || (c ? c.name : "Movimento"))}</div>
-          <div class="row-sub">${cap(fmtDateShort(t.date))}${a ? " · " + esc(a.name) : ""}${c ? " · " + esc(c.name) : ""}</div></div>
+          <div class="row-sub">${cap(fmtDateShort(t.date))}${t.time ? " " + t.time : ""}${a ? " · " + esc(a.name) : ""}${c ? " · " + esc(c.name) : ""}</div></div>
         <span class="amount-plain ${t.kind === "income" ? "in" : "out"}">${sign}${money(t.amount)}</span>
       </div>`;
     }).join("");
@@ -390,6 +390,30 @@
       `Saldo oggi: <b>${money(f.now)}</b><br>` +
       `Programmato nei prossimi 30 giorni: <b>${f.delta >= 0 ? "+" : ""}${money(f.delta)}</b><br>` +
       `Saldo previsto: <b>${money(f.future)}</b>`;
+
+    renderBudget(pk, byCat);
+  }
+
+  function renderBudget(pk, spentByCat) {
+    const box = $("#budget-list");
+    const budgeted = data.categories.filter((c) => c.kind === "expense" && c.budget > 0);
+    if (!budgeted.length) {
+      box.innerHTML = `<div class="budget-empty">Nessun budget impostato. Tocca "Imposta" per iniziare.</div>`;
+      return;
+    }
+    box.innerHTML = budgeted.map((c) => {
+      const spent = spentByCat[c.id] || 0;
+      const pct = Math.min(100, (spent / c.budget) * 100);
+      const cls = spent > c.budget ? "over" : pct >= 80 ? "warn" : "";
+      const left = c.budget - spent;
+      return `<div class="budget-row">
+        <div class="budget-top"><span class="bico">${svg(c.icon)}</span>
+          <span class="bname">${esc(c.name)}</span>
+          <span class="bval">${money0(spent)} / ${money0(c.budget)}</span></div>
+        <div class="budget-bar"><i class="${cls}" style="width:${pct}%"></i></div>
+        <div class="budget-top"><span class="bval" style="margin-left:28px">${left >= 0 ? "restano " + money0(left) : "sforato di " + money0(-left)}</span></div>
+      </div>`;
+    }).join("");
   }
 
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
@@ -409,7 +433,9 @@
       $("#f-amount").value = editTx.amount;
       $("#f-desc").value = editTx.description || "";
       $("#f-date").value = editTx.date;
+      $("#f-time").value = editTx.time || "";
       $("#f-planned").checked = !!editTx.planned;
+      $("#f-auto").checked = !!editTx.auto;
       $("#modal-title").textContent = "Modifica";
       $("#delete-entry").hidden = false;
     } else {
@@ -441,11 +467,13 @@
     if (!(amount > 0)) { toast("Inserisci un importo"); return; }
     if (!form.categoryId) { toast("Scegli una categoria"); return; }
     if (!form.accountId) { toast("Scegli un conto"); return; }
-    const planned = $("#f-planned").checked || form.repeat !== "none";
+    const auto = $("#f-auto").checked;
+    const planned = $("#f-planned").checked || auto || form.repeat !== "none";
     const payload = {
       accountId: form.accountId, categoryId: form.categoryId, kind: form.kind,
       amount, description: $("#f-desc").value.trim(),
-      date: $("#f-date").value || todayIso(), planned, repeat: form.repeat,
+      date: $("#f-date").value || todayIso(), time: $("#f-time").value || "",
+      planned, repeat: form.repeat, auto,
     };
     if (editingId) {
       const t = data.transactions.find((x) => x.id === editingId);
@@ -458,22 +486,39 @@
     render(); closeModal();
   }
 
-  function payPlanned(id) {
-    const t = data.transactions.find((x) => x.id === id);
-    if (!t) return;
+  function settlePlanned(t, useToday) {
     if (t.repeat && t.repeat !== "none") {
-      // crea la prossima occorrenza programmata
+      // crea la prossima occorrenza programmata (basata sulla data pianificata)
       data.transactions.push({
         id: uid(), accountId: t.accountId, categoryId: t.categoryId, kind: t.kind,
         amount: t.amount, description: t.description, date: addInterval(t.date, t.repeat),
-        planned: true, repeat: t.repeat, groupId: t.groupId || t.id,
+        time: t.time || "", planned: true, repeat: t.repeat, auto: t.auto,
+        groupId: t.groupId || t.id,
       });
     }
     t.planned = false;
-    t.date = todayIso();
+    if (useToday) t.date = todayIso();
     t.repeat = "none";
+    t.auto = false;
+  }
+
+  function payPlanned(id) {
+    const t = data.transactions.find((x) => x.id === id);
+    if (!t) return;
+    settlePlanned(t, true);
     render();
     toast("Segnata come pagata");
+  }
+
+  // Registra da sole le operazioni automatiche scadute (anche recuperando i mesi arretrati)
+  function autoSettle() {
+    const today = todayIso();
+    let guard = 0;
+    for (;;) {
+      const due = data.transactions.find((t) => t.planned && t.auto && t.date <= today);
+      if (!due || guard++ > 500) break;
+      settlePlanned(due, false);
+    }
   }
 
   // ---------- Picker categoria ----------
@@ -645,6 +690,27 @@
     }
   }
 
+  // ---------- Budget (modale) ----------
+  const budgetModal = $("#budget-modal");
+  function openBudgetEditor() {
+    budgetModal.hidden = false;
+    const cats = data.categories.filter((c) => c.kind === "expense");
+    $("#bm-list").innerHTML = cats.map((c) =>
+      `<div class="bm-item"><span class="bmi-ico">${svg(c.icon)}</span>
+        <span class="bmi-name">${esc(c.name)}</span>
+        <input type="number" inputmode="decimal" step="0.01" min="0" data-budget-cat="${c.id}"
+          placeholder="0" value="${c.budget > 0 ? c.budget : ""}" /></div>`
+    ).join("");
+  }
+  function closeBudgetEditor() { budgetModal.hidden = true; }
+  function saveBudget() {
+    $$("#bm-list input[data-budget-cat]").forEach((inp) => {
+      const c = catById(inp.dataset.budgetCat);
+      if (c) c.budget = parseFloat(String(inp.value || "0").replace(",", ".")) || 0;
+    });
+    save(); render(); closeBudgetEditor(); toast("Budget salvato");
+  }
+
   // ---------- Backup ----------
   function exportData() {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
@@ -695,6 +761,7 @@
       const gsrc = e.target.closest("[data-gsource]");
       if (gsrc) { goalForm.source = gsrc.dataset.gsource; renderGoalSources(); return; }
       if (e.target.hasAttribute("data-close-gm")) { closeGoalEditor(); return; }
+      if (e.target.hasAttribute("data-close-bm")) { closeBudgetEditor(); return; }
 
       const accIcon = e.target.closest("[data-acc-icon]");
       if (accIcon) { accForm.icon = accIcon.dataset.accIcon; syncAccIcons(); return; }
@@ -747,6 +814,8 @@
     $("#add-goal").addEventListener("click", () => openGoalEditor(null));
     $("#gm-save").addEventListener("click", saveGoal);
     $("#gm-delete").addEventListener("click", deleteGoal);
+    $("#edit-budget").addEventListener("click", openBudgetEditor);
+    $("#bm-save").addEventListener("click", saveBudget);
     $("#manage-cats").addEventListener("click", () => openCatPicker("manage"));
     $("#filter-month").addEventListener("change", renderMovimenti);
     $("#filter-account").addEventListener("change", renderMovimenti);
@@ -780,5 +849,6 @@
   }
 
   bind();
+  autoSettle();
   render();
 })();
