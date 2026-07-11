@@ -284,7 +284,20 @@ main { max-width: 720px; margin: 0 auto; padding: 0 16px; }
 .loan-foot .res b { color: var(--expense); }
 .loan-foot .done { color: var(--income); font-weight: 700; }
 .loan-pay { border: none; background: var(--terra); color: #fff; font-weight: 700; padding: 7px 14px; border-radius: 999px; font-size: 12.5px; cursor: pointer; flex-shrink: 0; font-family: inherit; }
+.loan-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.loan-plan { border: 1.5px solid var(--line); background: transparent; color: var(--ink); font-weight: 700; padding: 6px 13px; border-radius: 999px; font-size: 12.5px; cursor: pointer; font-family: inherit; }
 .loans-empty { text-align: center; color: var(--muted); font-size: 13px; padding: 8px 12px 14px; }
+
+/* Piano di ammortamento */
+.plan-summary { background: var(--cream-2); border-radius: 14px; padding: 12px 14px; margin-bottom: 14px; }
+.plan-sum-row { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; font-size: 14px; }
+.plan-sum-row span { color: var(--muted); }
+.plan-list { max-height: 55vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.plan-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.plan-table th { position: sticky; top: 0; background: var(--card); text-align: left; padding: 8px 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); border-bottom: 1.5px solid var(--line); }
+.plan-table td { padding: 8px 8px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.plan-table td.num { text-align: right; white-space: nowrap; }
+.plan-table tbody tr:first-child td { font-weight: 700; }
 
 /* Gestione preferiti */
 .fav-manage { display: flex; flex-direction: column; gap: 8px; }

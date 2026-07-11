@@ -941,11 +941,101 @@
         <div class="loan-bar"><i style="width:${pct}%"></i></div>
         <div class="loan-foot">
           <span>${l.paid}/${l.months} rate · <span class="res">residuo <b>${money0(loanResiduo(l))}</b></span></span>
-          ${done ? '<span class="done">Estinto 🎉</span>' : `<button class="loan-pay" data-payloan="${l.id}">Paga rata</button>`}
+          <span class="loan-actions">
+            <button class="loan-plan" data-loan-plan="${l.id}">Piano</button>
+            ${done ? '<span class="done">Estinto 🎉</span>' : `<button class="loan-pay" data-payloan="${l.id}">Paga rata</button>`}
+          </span>
         </div>
       </div>`;
     }).join("");
     box.innerHTML = html;
+  }
+
+  // ---------- Piano di ammortamento (piano rate) ----------
+  // Calcola l'elenco delle rate ancora da pagare: numero, scadenza, rata, residuo dopo.
+  function loanSchedule(l) {
+    const remaining = Math.max(0, (l.months || 0) - (l.paid || 0));
+    if (!remaining) return [];
+    // data di partenza: la prossima scadenza (o il giorno di addebito del mese prossimo)
+    let date = l.nextDue;
+    if (!date) {
+      const t = parseIso(todayIso());
+      const day = Math.min(l.dayOfMonth || 1, 28);
+      let d = new Date(t.getFullYear(), t.getMonth(), day);
+      if (d <= t) d = new Date(t.getFullYear(), t.getMonth() + 1, day);
+      date = isoOf(d);
+    }
+    const rows = [];
+    // residuo totale rate: parte dal residuo corrente e cala di una rata per volta
+    let residuo = loanResiduo(l);
+    for (let i = 0; i < remaining; i++) {
+      const quota = Math.min(l.rata, residuo) || l.rata;
+      residuo = Math.max(0, residuo - l.rata);
+      rows.push({ n: (l.paid || 0) + i + 1, date, rata: l.rata, residuoAfter: residuo });
+      date = addInterval(date, "monthly");
+    }
+    return rows;
+  }
+
+  function openLoanPlan(loanId) {
+    const l = (data.loans || []).find((x) => x.id === loanId);
+    if (!l) return;
+    planLoanId = loanId;
+    const rows = loanSchedule(l);
+    $("#plan-title").textContent = "Piano · " + (l.name || "Finanziamento");
+    const totale = rows.reduce((s, r) => s + r.rata, 0);
+    const fine = rows.length ? rows[rows.length - 1].date : null;
+    const capNote = l.residuo > 0
+      ? `<div class="plan-sum-row"><span>Residuo capitale (banca)</span><b>${money(l.residuo)}</b></div>` : "";
+    $("#plan-summary").innerHTML = `
+      <div class="plan-sum-row"><span>Rate rimaste</span><b>${rows.length} di ${l.months}</b></div>
+      <div class="plan-sum-row"><span>Rata mensile</span><b>${money(l.rata)}</b></div>
+      <div class="plan-sum-row"><span>Totale ancora da pagare</span><b>${money(totale)}</b></div>
+      ${capNote}
+      ${fine ? `<div class="plan-sum-row"><span>Ultima rata</span><b>${cap(fmtDayLong(fine))}</b></div>` : ""}`;
+    $("#plan-list").innerHTML = rows.length
+      ? `<table class="plan-table">
+          <thead><tr><th>#</th><th>Scadenza</th><th>Rata</th><th>Residuo rate</th></tr></thead>
+          <tbody>${rows.map((r) => `<tr>
+            <td>${r.n}</td>
+            <td>${cap(fmtDateFull(r.date))}</td>
+            <td class="num">${money(r.rata)}</td>
+            <td class="num">${money(r.residuoAfter)}</td></tr>`).join("")}</tbody>
+        </table>`
+      : `<div class="empty">Finanziamento estinto: nessuna rata residua.</div>`;
+    $("#plan-modal").hidden = false;
+  }
+  function closeLoanPlan() { $("#plan-modal").hidden = true; planLoanId = null; }
+  function fmtDateFull(iso) {
+    return parseIso(iso).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" });
+  }
+  let planLoanId = null;
+
+  // Stampa del piano di ammortamento
+  function printLoanPlan() {
+    const l = (data.loans || []).find((x) => x.id === planLoanId);
+    if (!l) return;
+    const area = $("#print-area");
+    if (!area) return;
+    const rows = loanSchedule(l);
+    const totale = rows.reduce((s, r) => s + r.rata, 0);
+    const now = parseIso(todayIso());
+    area.innerHTML = `
+      <h1 class="print-h1">Piano di ammortamento — ${esc(l.name || "Finanziamento")}</h1>
+      <p class="print-sub">Generato il ${cap(now.toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" }))}</p>
+      <table class="print-summary">
+        <tr><td>Rate rimaste</td><td>${rows.length} di ${l.months}</td></tr>
+        <tr><td>Rata mensile</td><td>${money(l.rata)}</td></tr>
+        <tr><td><b>Totale ancora da pagare</b></td><td><b>${money(totale)}</b></td></tr>
+        ${l.residuo > 0 ? `<tr><td>Residuo capitale (banca)</td><td>${money(l.residuo)}</td></tr>` : ""}
+      </table>
+      <div class="print-section-title">Rate</div>
+      <table class="print-table">
+        <thead><tr><th>#</th><th>Scadenza</th><th>Rata</th><th>Residuo rate</th></tr></thead>
+        <tbody>${rows.map((r) => `<tr><td>${r.n}</td><td>${fmtDateFull(r.date)}</td><td class="num">${money(r.rata)}</td><td class="num">${money(r.residuoAfter)}</td></tr>`).join("")}</tbody>
+      </table>
+      <p class="print-foot">Tasca · piano rate di ${esc(l.name || "finanziamento")}</p>`;
+    window.print();
   }
 
   const loanModal = $("#loan-modal");
@@ -1360,6 +1450,9 @@
 
       const payLoan = e.target.closest("[data-payloan]");
       if (payLoan) { e.stopPropagation(); payLoanRata(payLoan.dataset.payloan); return; }
+      const loanPlan = e.target.closest("[data-loan-plan]");
+      if (loanPlan) { e.stopPropagation(); openLoanPlan(loanPlan.dataset.loanPlan); return; }
+      if (e.target.hasAttribute("data-close-plan")) { closeLoanPlan(); return; }
       const loanEdit = e.target.closest("[data-loan-edit]");
       if (loanEdit) { openLoanEditor((data.loans || []).find((l) => l.id === loanEdit.dataset.loanEdit)); return; }
       if (e.target.hasAttribute("data-close-lm")) { closeLoanEditor(); return; }
@@ -1457,6 +1550,7 @@
     $("#btn-export").addEventListener("click", exportData);
     $("#btn-export-csv").addEventListener("click", exportCSV);
     $("#btn-print").addEventListener("click", printReport);
+    $("#plan-print").addEventListener("click", printLoanPlan);
     $("#btn-import").addEventListener("click", () => $("#import-file").click());
     $("#import-file").addEventListener("change", (e) => { if (e.target.files[0]) importData(e.target.files[0]); e.target.value = ""; });
     $("#btn-reset").addEventListener("click", () => {
