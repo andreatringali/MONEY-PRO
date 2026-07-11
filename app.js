@@ -677,19 +677,29 @@
   }
 
   function settlePlanned(t, useToday) {
-    if (t.repeat && t.repeat !== "none") {
-      // crea la prossima occorrenza programmata (basata sulla data pianificata)
+    const schedDate = t.date;
+    const loan = t.loanId ? (data.loans || []).find((l) => l.id === t.loanId) : null;
+    const loanWillFinish = loan ? (loan.paid + 1 >= loan.months) : false;
+    const nextDate = addInterval(schedDate, t.repeat && t.repeat !== "none" ? t.repeat : "monthly");
+    if (t.repeat && t.repeat !== "none" && !loanWillFinish) {
+      // crea la prossima occorrenza programmata (per i finanziamenti: la rata del mese dopo)
       data.transactions.push({
         id: uid(), accountId: t.accountId, categoryId: t.categoryId, kind: t.kind,
-        amount: t.amount, description: t.description, date: addInterval(t.date, t.repeat),
+        amount: t.amount, description: t.description, date: nextDate,
         time: t.time || "", planned: true, repeat: t.repeat, auto: t.auto,
-        groupId: t.groupId || t.id,
+        loanId: t.loanId || null, groupId: t.groupId || t.id,
       });
     }
     t.planned = false;
     if (useToday) t.date = todayIso();
     t.repeat = "none";
     t.auto = false;
+    // aggiorna la scheda finanziamento: una rata in meno, residuo che cala
+    if (loan) {
+      loan.paid = Math.min(loan.months, (loan.paid || 0) + 1);
+      if (loan.residuo > 0) loan.residuo = Math.max(0, round2(loan.residuo - loan.rata));
+      loan.nextDue = loan.paid >= loan.months ? "" : nextDate;
+    }
   }
 
   function payPlanned(id) {
@@ -830,6 +840,24 @@
 
   // ---------- Finanziamenti ----------
   function loanResiduo(l) { return l.residuo > 0 ? l.residuo : Math.max(0, (l.months || 0) - (l.paid || 0)) * (l.rata || 0); }
+  function finanziamentiCatId() { const c = data.categories.find((x) => x.id === "finanziamenti_expense") || data.categories.find((x) => x.kind === "expense"); return c ? c.id : null; }
+  function loanPlannedTx(loanId) { return data.transactions.filter((t) => t.loanId === loanId && t.planned); }
+  // Programma la prossima rata del finanziamento (se non c'è già), fino alla fine del piano
+  function ensureLoanSchedule(l) {
+    if (!l.nextDue || l.paid >= l.months) return;
+    if (loanPlannedTx(l.id).length) return;
+    data.transactions.push({
+      id: uid(), accountId: l.accountId, categoryId: finanziamentiCatId(), kind: "expense",
+      amount: l.rata, description: l.name, date: l.nextDue, time: "", planned: true,
+      repeat: "monthly", auto: l.auto !== false, loanId: l.id,
+      fromAccountId: null, toAccountId: null, groupId: null,
+    });
+  }
+  function ensureLoanSchedules() { (data.loans || []).forEach(ensureLoanSchedule); }
+  function regenLoanSchedule(l) {
+    data.transactions = data.transactions.filter((t) => !(t.loanId === l.id && t.planned));
+    ensureLoanSchedule(l);
+  }
   function renderLoans() {
     const box = $("#loans-list");
     const loans = data.loans || [];
@@ -873,12 +901,15 @@
       $("#lm-months").value = loan.months; $("#lm-paid").value = loan.paid;
       $("#lm-day").value = loan.dayOfMonth || ""; accSel.value = loan.accountId || (data.accounts[0] && data.accounts[0].id);
       $("#lm-residuo").value = loan.residuo > 0 ? loan.residuo : "";
+      $("#lm-next").value = loan.nextDue || "";
+      $("#lm-auto").checked = loan.auto !== false;
       $("#lm-delete").hidden = false;
     } else {
       loanEditId = null;
       $("#lm-title").textContent = "Nuovo finanziamento";
       $("#lm-rata").value = ""; $("#lm-name").value = "";
       $("#lm-months").value = ""; $("#lm-paid").value = "0"; $("#lm-day").value = ""; $("#lm-residuo").value = "";
+      $("#lm-next").value = ""; $("#lm-auto").checked = true;
       accSel.value = data.accounts[0] ? data.accounts[0].id : "";
       $("#lm-delete").hidden = true;
     }
@@ -892,20 +923,28 @@
     const dayOfMonth = Math.min(28, Math.max(1, parseInt($("#lm-day").value, 10) || 1));
     const accountId = $("#lm-account").value || (data.accounts[0] && data.accounts[0].id);
     const residuo = parseFloat(String($("#lm-residuo").value || "0").replace(",", ".")) || 0;
+    const nextDue = $("#lm-next").value || "";
+    const auto = $("#lm-auto").checked;
     if (!name) { toast("Dai un nome al finanziamento"); return; }
     if (!(rata > 0) || !(months > 0)) { toast("Inserisci rata e numero rate"); return; }
     if (!data.loans) data.loans = [];
+    let loan;
     if (loanEditId) {
-      Object.assign(data.loans.find((x) => x.id === loanEditId), { name, rata, months, paid, dayOfMonth, accountId, residuo });
+      loan = data.loans.find((x) => x.id === loanEditId);
+      Object.assign(loan, { name, rata, months, paid, dayOfMonth, accountId, residuo, nextDue, auto });
       toast("Finanziamento aggiornato");
     } else {
-      data.loans.push({ id: "loan_" + uid(), name, rata, months, paid, dayOfMonth, accountId, residuo });
+      loan = { id: "loan_" + uid(), name, rata, months, paid, dayOfMonth, accountId, residuo, nextDue, auto };
+      data.loans.push(loan);
       toast("Finanziamento aggiunto");
     }
+    regenLoanSchedule(loan); // riprogramma le rate future
+    autoSettle();            // registra subito le rate automatiche già scadute
     save(); render(); closeLoanEditor();
   }
   function deleteLoan() {
-    if (loanEditId && confirm("Eliminare questo finanziamento?")) {
+    if (loanEditId && confirm("Eliminare questo finanziamento? Le rate future programmate verranno rimosse.")) {
+      data.transactions = data.transactions.filter((t) => !(t.loanId === loanEditId && t.planned));
       data.loans = data.loans.filter((l) => l.id !== loanEditId);
       save(); render(); closeLoanEditor(); toast("Finanziamento eliminato");
     }
@@ -913,14 +952,19 @@
   function payLoanRata(id) {
     const l = (data.loans || []).find((x) => x.id === id);
     if (!l || l.paid >= l.months) return;
-    l.paid += 1;
-    if (l.residuo > 0) l.residuo = Math.max(0, round2(l.residuo - l.rata));
-    const cat = data.categories.find((c) => c.id === "finanziamenti_expense") || data.categories.find((c) => c.kind === "expense");
-    data.transactions.push({
-      id: uid(), accountId: l.accountId, categoryId: cat ? cat.id : null, kind: "expense",
-      amount: l.rata, description: l.name, date: todayIso(), time: "", planned: false,
-      repeat: "none", auto: false, fromAccountId: null, toAccountId: null, groupId: null,
-    });
+    const sched = loanPlannedTx(id).sort((a, b) => (a.date < b.date ? -1 : 1))[0];
+    if (sched) {
+      settlePlanned(sched, false); // conferma la prossima rata e avanza il finanziamento
+    } else {
+      // nessuna rata programmata: avanza comunque e registra l'uscita
+      l.paid += 1;
+      if (l.residuo > 0) l.residuo = Math.max(0, round2(l.residuo - l.rata));
+      data.transactions.push({
+        id: uid(), accountId: l.accountId, categoryId: finanziamentiCatId(), kind: "expense",
+        amount: l.rata, description: l.name, date: todayIso(), time: "", planned: false,
+        repeat: "none", auto: false, fromAccountId: null, toAccountId: null, groupId: null,
+      });
+    }
     save(); render();
     toast(l.paid >= l.months ? "Finanziamento estinto! 🎉" : "Rata registrata");
   }
@@ -1115,6 +1159,7 @@
         const parsed = JSON.parse(r.result);
         if (!parsed || !Array.isArray(parsed.transactions)) throw 0;
         data = Object.assign(defaultData(), parsed);
+        ensureLoanSchedules(); autoSettle();
         render(); toast("Backup importato");
       } catch (e) { toast("File non valido"); }
     };
@@ -1364,6 +1409,7 @@
   function updateFab(tab) { $("#fab").style.display = tab === "oggi" ? "none" : ""; }
 
   bind();
+  ensureLoanSchedules();
   autoSettle();
   render();
   updateFab("oggi");

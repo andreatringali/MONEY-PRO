@@ -336,6 +336,15 @@
         <span>Residuo attuale <em class="muted">(facolt., dai dati della banca)</em></span>
         <input id="lm-residuo" type="number" inputmode="decimal" step="0.01" placeholder="Lascia vuoto per calcolo automatico" />
       </label>
+      <label class="field">
+        <span>Prossima scadenza <em class="muted">(per programmare le rate)</em></span>
+        <input id="lm-next" type="date" />
+      </label>
+      <label class="switch-row">
+        <span>Registra le rate automaticamente</span>
+        <input type="checkbox" id="lm-auto" class="switch" checked />
+      </label>
+      <p class="muted small">La rata mensile viene programmata fino alla fine e, ad ogni pagamento, la scheda si aggiorna (una rata in meno, residuo che cala).</p>
       <button type="button" id="lm-delete" class="btn btn-danger full" hidden>Elimina finanziamento</button>
     </div>
   </div>
