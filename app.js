@@ -370,6 +370,7 @@
   let calMonth = currentPeriod();  // 'YYYY-MM'
   let selectedDay = null;          // 'YYYY-MM-DD' o null
   let searchQuery = "";
+  let movView = "daily";           // 'daily' | 'ledger'
 
   function renderCalendar() {
     const [y, m] = calMonth.split("-").map(Number);
@@ -422,6 +423,9 @@
     const dayBar = selectedDay
       ? `<div class="day-filter-bar"><span>Giorno: <b>${cap(fmtDayLong(selectedDay))}</b></span><button data-clear-day>Mostra tutti</button></div>`
       : "";
+
+    if (movView === "ledger") { renderLedger(items, fa, dayBar); return; }
+
     if (!items.length) { box.innerHTML = dayBar + `<div class="empty">Nessun movimento in questo ${selectedDay ? "giorno" : "periodo"}.</div>`; return; }
 
     // Raggruppa per giorno
@@ -464,6 +468,54 @@
   function fmtDayLong(iso) {
     const d = parseIso(iso);
     return d.toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "long" });
+  }
+
+  // Prima nota: saldo progressivo dopo ogni movimento
+  function ledgerBalances(scope) {
+    let list = data.transactions.filter((t) => !t.planned);
+    if (scope === "all") list = list.filter((t) => t.kind !== "transfer");
+    else list = list.filter((t) => (t.accountId === scope && t.kind !== "transfer") || (t.kind === "transfer" && (t.fromAccountId === scope || t.toAccountId === scope)));
+    list.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id < b.id ? -1 : 1));
+    let bal = scope === "all"
+      ? data.accounts.reduce((s, a) => s + (a.opening || 0), 0)
+      : (accById(scope) ? accById(scope).opening || 0 : 0);
+    const map = {};
+    for (const t of list) {
+      const delta = t.kind === "transfer" ? (t.fromAccountId === scope ? -t.amount : t.amount) : (t.kind === "income" ? t.amount : -t.amount);
+      bal += delta;
+      map[t.id] = { delta, balance: bal };
+    }
+    return map;
+  }
+  function renderLedger(items, fa, dayBar) {
+    const box = $("#movements-list");
+    const scope = fa === "all" ? "all" : fa;
+    const map = ledgerBalances(scope);
+    const rows = items.filter((t) => map[t.id]); // esclude i trasferimenti nel totale
+    if (!rows.length) { box.innerHTML = dayBar + `<div class="empty">Nessun movimento da mostrare.</div>`; return; }
+    const scopeLabel = scope === "all" ? "Totale conti" : (accById(scope) ? accById(scope).name : "");
+    let html = dayBar + `<div class="card ledger-card">
+      <div class="card-head"><h3>Prima nota</h3><span class="card-side">${esc(scopeLabel)}</span></div>
+      <div class="ledger-start">Saldo iniziale: <b>${money(scope === "all" ? data.accounts.reduce((s, a) => s + (a.opening || 0), 0) : (accById(scope) ? accById(scope).opening || 0 : 0))}</b></div>`;
+    html += rows.map((t) => {
+      const info = map[t.id];
+      const c = catById(t.categoryId);
+      let desc, cls, sign;
+      if (t.kind === "transfer") {
+        const other = accById(t.fromAccountId === scope ? t.toAccountId : t.fromAccountId);
+        desc = "Trasferimento " + (t.fromAccountId === scope ? "→ " : "← ") + (other ? esc(other.name) : "");
+        cls = "xfer"; sign = info.delta >= 0 ? "+ " : "− ";
+      } else {
+        desc = esc(t.description || (c ? c.name : "Movimento"));
+        cls = t.kind === "income" ? "in" : "out"; sign = t.kind === "income" ? "+ " : "− ";
+      }
+      return `<div class="ledger-row" data-edit="${t.id}">
+        <div class="lr-left"><span class="lr-date">${cap(fmtDateShort(t.date))}${t.time ? " " + t.time : ""}</span><span class="lr-desc">${desc}</span></div>
+        <div class="lr-right"><span class="lr-amt ${cls}">${sign}${money(Math.abs(info.delta))}</span><span class="lr-bal">Saldo <b>${money(info.balance)}</b></span></div>
+      </div>`;
+    }).join("");
+    html += `</div>`;
+    box.innerHTML = html;
   }
 
   function renderResoconti() {
@@ -1189,6 +1241,11 @@
     $("#filter-month").addEventListener("change", renderMovimenti);
     $("#filter-account").addEventListener("change", renderMovimenti);
     $("#search-input").addEventListener("input", (e) => { searchQuery = e.target.value.trim(); renderMovimenti(); });
+    $$("#mov-view .seg-btn").forEach((btn) => btn.addEventListener("click", () => {
+      movView = btn.dataset.view;
+      $$("#mov-view .seg-btn").forEach((b) => b.classList.toggle("active", b === btn));
+      renderMovimenti();
+    }));
 
     $("#btn-export").addEventListener("click", exportData);
     $("#btn-import").addEventListener("click", () => $("#import-file").click());
