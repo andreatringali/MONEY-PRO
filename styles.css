@@ -52,6 +52,17 @@ body {
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   padding-bottom: calc(96px + var(--safe-bottom));
+  /* cifre allineate (no old-style) in tutta l'app: numeri coerenti e dritti */
+  font-variant-numeric: lining-nums;
+  font-feature-settings: "lnum" 1;
+}
+/* tutti gli importi/numeri chiave: cifre lining + tabellari (allineate in colonna) */
+.hero-value, .sc-value, .safe-value, .goal-cur, .goal-target, .net-value, .date-day,
+.acc-total b, .alr-val, .alr-pct, .abr-val, .amount-plain, .amount-badge, .amount,
+.stat .v, .lr-amt, .lr-bal, .plan-table td, .csv-table td, .stat-val, .stat-delta,
+#dash-networth, #net-worth, .result-value, .hero-forecast {
+  font-variant-numeric: lining-nums tabular-nums;
+  font-feature-settings: "lnum" 1, "tnum" 1;
 }
 img, svg, video, canvas { max-width: 100%; }
 .row-title, .abr-name, .card-head h3, .goal-name, .bmi-name { overflow-wrap: anywhere; }
@@ -68,11 +79,14 @@ main { max-width: 720px; margin: 0 auto; padding: 0 16px; }
 .date-day { font-family: var(--serif); font-size: 42px; font-weight: 600; line-height: 1; }
 .date-rest { display: flex; flex-direction: column; font-size: 15px; line-height: 1.3; padding-left: 12px; border-left: 1px solid var(--line); }
 .date-rest span:last-child { color: var(--muted); }
-/* Dashboard: data a sinistra, saldo a destra sulla stessa riga */
-.dash-head { align-items: center; padding: 14px 2px 8px; }
-.dash-head .hero-balance { padding: 0; align-items: flex-end; text-align: right; gap: 2px; }
-.dash-head .hero-value { font-size: 27px; }
-.dash-head .date-day { font-size: 40px; }
+/* Dashboard: data a sinistra, saldo a destra, allineati in basso */
+.dash-head { align-items: flex-end; padding: 16px 4px 6px; }
+.dash-head .date-block { align-items: flex-end; }
+.dash-head .date-day { font-size: 38px; }
+.dash-head .date-rest { font-size: 14px; padding-left: 12px; }
+.dash-head .hero-balance { padding: 0; align-items: flex-end; text-align: right; gap: 3px; }
+.dash-head .hero-label { font-size: 11px; letter-spacing: 1.2px; }
+.dash-head .hero-value { font-size: 26px; line-height: 1; }
 .head-add {
   width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line);
   background: var(--card); color: var(--terra); font-size: 24px; line-height: 1; cursor: pointer;

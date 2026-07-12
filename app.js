@@ -3,7 +3,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v14";
+  const APP_VERSION = "v15";
 
   // ---------- Icone (SVG inline) ----------
   const ICONS = {
@@ -278,8 +278,6 @@
     const hb = $("#hero-balance");
     hb.textContent = money(bal); hb.classList.toggle("neg", bal < 0);
     const f = forecast30();
-    $("#hero-forecast").textContent = f.delta
-      ? `Tra 30 giorni previsto: ${money(f.future)}` : "";
 
     // Stat cards
     const pk = currentPeriod();
