@@ -3,7 +3,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v23";
+  const APP_VERSION = "v24";
 
   // ---------- Icone (SVG inline) ----------
   const ICONS = {
@@ -1230,6 +1230,8 @@
     $$("#csv-amt-mode .seg-btn").forEach((b) => b.classList.toggle("active", b.dataset.mode === csvState.mode));
     $("#csv-single-fields").hidden = csvState.mode !== "single";
     $("#csv-split-fields").hidden = csvState.mode !== "split";
+    $("#csv-note").value = "";
+    $("#csv-future-planned").checked = true;
     $("#csv-modal").hidden = false;
     renderCsvPreview();
   }
@@ -1264,8 +1266,11 @@
     const cur = accCurrency(csvState.accountId);
     let dup = 0;
     const fresh = rows.filter((r) => { const d = isCsvDup(r); if (d) dup++; return !d; });
+    const fp = $("#csv-future-planned"); const futurePlanned = fp ? fp.checked : true;
+    const today = todayIso();
+    const planCount = fresh.filter((r) => futurePlanned && r.date > today).length;
     $("#csv-summary").innerHTML = rows.length
-      ? `<b>${fresh.length}</b> movimenti da importare${dup ? ` · ${dup} già presenti (saltati)` : ""}`
+      ? `<b>${fresh.length}</b> movimenti da importare${planCount ? ` · ${planCount} come programmati` : ""}${dup ? ` · ${dup} già presenti (saltati)` : ""}`
       : `Nessun movimento riconosciuto: controlla le colonne.`;
     const show = rows.slice(0, 8);
     $("#csv-preview").innerHTML = show.length
@@ -1276,24 +1281,32 @@
   }
   function isCsvDup(r) {
     const desc = r.description.toLowerCase();
-    return data.transactions.some((t) => !t.planned && t.accountId === csvState.accountId &&
+    return data.transactions.some((t) => t.accountId === csvState.accountId &&
       t.date === r.date && Math.abs((t.kind === "income" ? t.amount : -t.amount) - r.amount) < 0.005 &&
       String(t.description || "").toLowerCase() === desc);
   }
   function confirmCsvImport() {
     const rows = csvParsedRows().filter((r) => !isCsvDup(r));
     if (!rows.length) { toast("Nessun nuovo movimento da importare"); return; }
+    const note = ($("#csv-note").value || "").trim();
+    const tags = note ? [note] : [];
+    const futurePlanned = $("#csv-future-planned").checked;
+    const today = todayIso();
+    let planCount = 0;
     for (const r of rows) {
+      const planned = futurePlanned && r.date > today;
+      if (planned) planCount++;
       data.transactions.push({
         id: uid(), accountId: csvState.accountId, categoryId: null,
         kind: r.amount >= 0 ? "income" : "expense", amount: Math.abs(r.amount),
-        description: r.description, date: r.date, time: "", planned: false,
-        repeat: "none", auto: false, fromAccountId: null, toAccountId: null, groupId: "import", tags: [],
+        description: r.description, date: r.date, time: "", planned,
+        repeat: "none", auto: false, fromAccountId: null, toAccountId: null, groupId: "import", tags: tags.slice(),
       });
     }
     save(); render();
     closeCsvModal(); closeAccountEditor();
-    toast(rows.length + (rows.length === 1 ? " movimento importato" : " movimenti importati"));
+    const extra = planCount ? ` (${planCount} programmati)` : "";
+    toast(rows.length + (rows.length === 1 ? " movimento importato" : " movimenti importati") + extra);
   }
 
   function syncAccType() {
@@ -2172,7 +2185,7 @@
       $("#csv-split-fields").hidden = csvState.mode !== "split";
       renderCsvPreview();
     }));
-    ["#csv-col-date", "#csv-col-desc", "#csv-col-amount", "#csv-col-in", "#csv-col-out", "#csv-neg-out"].forEach((id) =>
+    ["#csv-col-date", "#csv-col-desc", "#csv-col-amount", "#csv-col-in", "#csv-col-out", "#csv-neg-out", "#csv-future-planned"].forEach((id) =>
       $(id).addEventListener("change", renderCsvPreview));
     $("#csv-modal").addEventListener("click", (e) => { if (e.target.hasAttribute("data-close-csv")) closeCsvModal(); });
     $("#f-calc").addEventListener("click", () => openCalc("amount"));

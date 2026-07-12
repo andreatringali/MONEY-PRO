@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Mulish:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=23" />
+  <link rel="stylesheet" href="styles.css?v=24" />
   <title>Tasca</title>
 </head>
 <body>
@@ -588,6 +588,9 @@
           <label class="field"><span>Colonna entrate</span><select id="csv-col-in" class="select-inline"></select></label>
           <label class="field"><span>Colonna uscite</span><select id="csv-col-out" class="select-inline"></select></label>
         </div>
+        <label class="field"><span>Nota <em class="muted">(facolt., aggiunta a ogni riga come tag)</em></span><input id="csv-note" type="text" placeholder="Es. Scalapay, Klarna" autocomplete="off" /></label>
+        <label class="switch-row"><span>Date future → programmate</span><input type="checkbox" id="csv-future-planned" class="switch" checked /></label>
+        <p class="muted small">Le righe con data successiva a oggi vengono importate come operazioni previste (compaiono nella Previsione e non toccano il saldo finché non le paghi).</p>
       </div>
       <div class="csv-summary" id="csv-summary"></div>
       <div class="csv-preview" id="csv-preview"></div>
@@ -618,6 +621,6 @@
 
   <div id="toast" class="toast" hidden></div>
 
-  <script src="app.js?v=23"></script>
+  <script src="app.js?v=24"></script>
 </body>
 </html>
