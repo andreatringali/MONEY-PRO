@@ -3,7 +3,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v24";
+  const APP_VERSION = "v25";
 
   // ---------- Icone (SVG inline) ----------
   const ICONS = {
@@ -1146,8 +1146,150 @@
   function closeAccountEditor() { accountModal.hidden = true; }
   function round2(n) { return Math.round(n * 100) / 100; }
 
+  // ---------- Lettura PDF (estratto conto) — motore leggero, offline ----------
+  // Estrae il testo con posizioni da PDF non cifrati con stream FlateDecode e
+  // font Type0/Identity-H (formato Revolut). Usa DecompressionStream nativo.
+  const PdfImport = (() => {
+    function bytesToLatin1(u8) { let s = ""; const CH = 0x8000; for (let i = 0; i < u8.length; i += CH) s += String.fromCharCode.apply(null, u8.subarray(i, i + CH)); return s; }
+    async function inflate(u8) {
+      if (typeof DecompressionStream === "undefined") return null;
+      for (const fmt of ["deflate", "deflate-raw"]) {
+        try { const ab = await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream(fmt))).arrayBuffer(); return new Uint8Array(ab); } catch (e) {}
+      }
+      return null;
+    }
+    function hexToStr(h) { const out = []; for (let i = 0; i < h.length; i += 4) out.push(String.fromCharCode(parseInt(h.substr(i, 4), 16))); return out.join(""); }
+    function parseToUnicode(text, map) {
+      let m, reC = /beginbfchar([\s\S]*?)endbfchar/g;
+      while ((m = reC.exec(text))) { const pair = /<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/g; let p; while ((p = pair.exec(m[1]))) map.set(parseInt(p[1], 16), hexToStr(p[2])); }
+      let reR = /beginbfrange([\s\S]*?)endbfrange/g;
+      while ((m = reR.exec(text))) {
+        const line = /<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*(\[[\s\S]*?\]|<[0-9A-Fa-f]+>)/g; let l;
+        while ((l = line.exec(m[1]))) {
+          const lo = parseInt(l[1], 16), hi = parseInt(l[2], 16), dst = l[3];
+          if (dst[0] === "[") { const arr = dst.slice(1, -1).match(/<([0-9A-Fa-f]+)>/g) || []; for (let i = 0; i <= hi - lo && i < arr.length; i++) map.set(lo + i, hexToStr(arr[i].replace(/[<>]/g, ""))); }
+          else { const base = dst.replace(/[<>]/g, ""); for (let i = 0; i <= hi - lo; i++) { const cu = base.match(/.{4}/g).map((h) => parseInt(h, 16)); cu[cu.length - 1] += i; map.set(lo + i, cu.map((c) => String.fromCharCode(c)).join("")); } }
+        }
+      }
+    }
+    function litBytes(str) {
+      const out = [];
+      for (let i = 0; i < str.length; i++) {
+        let c = str[i];
+        if (c === "\\") { const n = str[i + 1];
+          if (n === "n") { out.push(10); i++; } else if (n === "r") { out.push(13); i++; } else if (n === "t") { out.push(9); i++; }
+          else if (n === "b") { out.push(8); i++; } else if (n === "f") { out.push(12); i++; }
+          else if (n === "(" || n === ")" || n === "\\") { out.push(n.charCodeAt(0)); i++; }
+          else if (n >= "0" && n <= "7") { let o = "", j = i + 1; while (j < str.length && o.length < 3 && str[j] >= "0" && str[j] <= "7") { o += str[j]; j++; } out.push(parseInt(o, 8) & 0xff); i = j - 1; }
+          else { out.push(n.charCodeAt(0)); i++; } }
+        else out.push(c.charCodeAt(0) & 0xff);
+      }
+      return out;
+    }
+    const hexBytes = (h) => { h = h.replace(/\s+/g, ""); if (h.length % 2) h += "0"; const b = []; for (let i = 0; i < h.length; i += 2) b.push(parseInt(h.substr(i, 2), 16)); return b; };
+    function bytesToText(bytes, uni) { let s = ""; for (let i = 0; i + 1 < bytes.length; i += 2) { const code = (bytes[i] << 8) | bytes[i + 1]; s += uni.has(code) ? uni.get(code) : ""; } return s; }
+    function tokenize(s) {
+      const toks = []; let i = 0; const n = s.length;
+      const isWS = (c) => c === " " || c === "\n" || c === "\r" || c === "\t" || c === "\f" || c === "\0";
+      while (i < n) {
+        const c = s[i];
+        if (isWS(c)) { i++; continue; }
+        if (c === "(") { let depth = 1, j = i + 1, str = ""; while (j < n && depth > 0) { const d = s[j]; if (d === "\\") { str += d + (s[j + 1] || ""); j += 2; continue; } if (d === "(") depth++; else if (d === ")") { depth--; if (depth === 0) break; } str += d; j++; } toks.push({ str: true, bytes: litBytes(str) }); i = j + 1; continue; }
+        if (c === "<" && s[i + 1] === "<") { i += 2; continue; }
+        if (c === ">" && s[i + 1] === ">") { i += 2; continue; }
+        if (c === "<") { let j = s.indexOf(">", i); if (j < 0) { i++; continue; } toks.push({ str: true, bytes: hexBytes(s.slice(i + 1, j)) }); i = j + 1; continue; }
+        if (c === "/") { let j = i + 1; while (j < n && !isWS(s[j]) && "()<>[]{}/%".indexOf(s[j]) < 0) j++; toks.push({ name: s.slice(i, j) }); i = j; continue; }
+        if (c === "%") { let j = i; while (j < n && s[j] !== "\n") j++; i = j + 1; continue; }
+        if (c === "[") { let depth = 1, j = i + 1; const items = []; while (j < n && depth > 0) { const d = s[j]; if (d === "(") { let dep = 1, k = j + 1, str = ""; while (k < n && dep > 0) { const e = s[k]; if (e === "\\") { str += e + (s[k + 1] || ""); k += 2; continue; } if (e === "(") dep++; else if (e === ")") { dep--; if (dep === 0) break; } str += e; k++; } items.push({ str: true, bytes: litBytes(str) }); j = k + 1; } else if (d === "<") { let k = s.indexOf(">", j); items.push({ str: true, bytes: hexBytes(s.slice(j + 1, k)) }); j = k + 1; } else if (d === "]") { depth--; j++; break; } else j++; } toks.push({ arr: true, items }); i = j; continue; }
+        if (c === ")" || c === ">" || c === "]" || c === "}" || c === "{") { i++; continue; }
+        let j = i; while (j < n && !isWS(s[j]) && "()<>[]{}/%".indexOf(s[j]) < 0) j++;
+        if (j === i) { i++; continue; }
+        const w = s.slice(i, j);
+        if (/^[-+]?(\d+\.?\d*|\.\d+)$/.test(w)) toks.push({ n: parseFloat(w) }); else toks.push({ op: true, v: w });
+        i = j;
+      }
+      return toks;
+    }
+    function extractRuns(content, uni) {
+      const runs = []; let tm = [1, 0, 0, 1, 0, 0], lm = [1, 0, 0, 1, 0, 0];
+      const mul = (a, b) => [a[0] * b[0] + a[1] * b[2], a[0] * b[1] + a[1] * b[3], a[2] * b[0] + a[3] * b[2], a[2] * b[1] + a[3] * b[3], a[4] * b[0] + a[5] * b[2] + b[4], a[4] * b[1] + a[5] * b[3] + b[5]];
+      const toks = tokenize(content); const stack = [];
+      const num = (idx) => { const t = stack[stack.length + idx]; return t ? (t.n != null ? t.n : 0) : 0; };
+      const show = (bytes) => { runs.push({ x: tm[4], y: tm[5], s: bytesToText(bytes, uni) }); };
+      for (let i = 0; i < toks.length; i++) {
+        const t = toks[i];
+        if (t.op) {
+          switch (t.v) {
+            case "BT": tm = [1, 0, 0, 1, 0, 0]; lm = tm.slice(); break;
+            case "Td": case "TD": { const ty = num(-1), tx = num(-2); lm = mul([1, 0, 0, 1, tx, ty], lm); tm = lm.slice(); break; }
+            case "Tm": { tm = [num(-6), num(-5), num(-4), num(-3), num(-2), num(-1)]; lm = tm.slice(); break; }
+            case "T*": { lm = mul([1, 0, 0, 1, 0, -12], lm); tm = lm.slice(); break; }
+            case "Tj": { const st = stack[stack.length - 1]; if (st && st.str) show(st.bytes); break; }
+            case "'": { lm = mul([1, 0, 0, 1, 0, -12], lm); tm = lm.slice(); const st = stack[stack.length - 1]; if (st && st.str) show(st.bytes); break; }
+            case "\"": { const st = stack[stack.length - 1]; if (st && st.str) show(st.bytes); break; }
+            case "TJ": { const arr = stack[stack.length - 1]; if (arr && arr.arr) { let bytes = []; for (const el of arr.items) if (el.str) bytes = bytes.concat(el.bytes); show(bytes); } break; }
+          }
+          stack.length = 0;
+        } else stack.push(t);
+      }
+      return runs;
+    }
+    async function extract(u8) {
+      const s = bytesToLatin1(u8); const uni = new Map(); const contents = [];
+      let re = /stream\r?\n/g, m; const starts = []; while ((m = re.exec(s))) starts.push(m.index + m[0].length);
+      for (const start of starts) {
+        const end = s.indexOf("endstream", start); if (end < 0) continue;
+        let raw = s.slice(start, end); if (raw.endsWith("\n")) raw = raw.slice(0, -1); if (raw.endsWith("\r")) raw = raw.slice(0, -1);
+        const inf = await inflate(Uint8Array.from(raw, (c) => c.charCodeAt(0) & 0xff)); if (!inf) continue;
+        const txt = bytesToLatin1(inf);
+        if (/beginbfchar|beginbfrange/.test(txt)) parseToUnicode(txt, uni);
+        if (/\bBT\b|\bTj\b|\bTJ\b/.test(txt)) contents.push(txt);
+      }
+      const pages = [];
+      for (const content of contents) {
+        const runs = extractRuns(content, uni); const byY = new Map();
+        for (const r of runs) { const k = Math.round(r.y); if (!byY.has(k)) byY.set(k, []); byY.get(k).push(r); }
+        const ys = [...byY.keys()].sort((a, b) => b - a);
+        pages.push(ys.map((y) => byY.get(y).sort((a, b) => a.x - b.x).map((r) => ({ x: r.x, s: r.s }))));
+      }
+      return pages;
+    }
+    // --- parser Revolut: righe con posizioni -> transazioni ---
+    const MESI = { gen: 1, feb: 2, mar: 3, apr: 4, mag: 5, giu: 6, lug: 7, ago: 8, set: 9, ott: 10, nov: 11, dic: 12 };
+    const AMT_RE = /^-?[\d.,]+€$/;
+    const dateStart = /^(\d{1,2})\s+(gen|feb|mar|apr|mag|giu|lug|ago|set|ott|nov|dic)\s+(\d{4})/i;
+    function itAmount(s) { const m = String(s).replace(/[^\d.,]/g, ""); if (!m) return null; const v = parseFloat(m.replace(/\./g, "").replace(",", ".")); return isNaN(v) ? null : v; }
+    function parseRevolut(pages) {
+      let opening = null;
+      outer: for (const p of pages) for (const l of p) { const t = l.map((c) => c.s).join(" ").replace(/\s+/g, " ").trim(); const mm = t.match(/^(?:Conto\b.*?|Totale)\s+([\d.,]+)€\s+([\d.,]+)€\s+([\d.,]+)€\s+([\d.,]+)€/); if (mm) { opening = itAmount(mm[1]); break outer; } }
+      const USCITA_MAX = 385;
+      const txs = []; let prev = opening != null ? opening : 0; let first = opening == null;
+      for (const p of pages) for (const line of p) {
+        const joined = line.map((c) => c.s).join(" ").replace(/\s+/g, " ").trim();
+        const dm = joined.match(dateStart); if (!dm) continue;
+        const day = +dm[1], mon = MESI[dm[2].toLowerCase()], year = +dm[3];
+        const amtCells = line.filter((c) => AMT_RE.test(c.s.trim())).map((c) => ({ x: c.x, v: itAmount(c.s) })).filter((c) => c.v != null);
+        if (amtCells.length < 2) continue;
+        amtCells.sort((a, b) => a.x - b.x);
+        const saldo = amtCells[amtCells.length - 1].v; const move = amtCells[amtCells.length - 2];
+        const firstAmtX = amtCells[0].x;
+        const desc = line.filter((c) => c.x > 60 && c.x < firstAmtX - 5 && !AMT_RE.test(c.s.trim())).map((c) => c.s).join(" ").replace(/\s+/g, " ").trim();
+        if (first) { prev = saldo; first = false; continue; }
+        let amount = move.x < USCITA_MAX ? -move.v : move.v;
+        const delta = +(saldo - prev).toFixed(2);
+        if (Math.abs(Math.abs(delta) - move.v) < 0.02) amount = delta;
+        prev = saldo;
+        if (move.v === 0) continue;
+        const iso = year + "-" + String(mon).padStart(2, "0") + "-" + String(day).padStart(2, "0");
+        txs.push({ date: iso, description: desc, amount });
+      }
+      return { opening, txs };
+    }
+    return { extract, parseRevolut, supported: typeof DecompressionStream !== "undefined" };
+  })();
+
   // ---------- Import estratto conto (CSV) ----------
-  const csvState = { accountId: null, rows: [], header: [], mode: "single" };
+  const csvState = { accountId: null, rows: [], header: [], mode: "single", pdfRows: null };
 
   function parseCSV(text, delim) {
     const rows = []; let row = [], field = "", inQ = false;
@@ -1214,29 +1356,58 @@
     sel.value = String(guessIdx);
   }
   function openCsvModal() {
+    const pdf = !!csvState.pdfRows;
     const acc = accById(csvState.accountId);
-    $("#csv-account-note").textContent = acc
-      ? `${csvState.rows.length} righe · verranno aggiunte a "${acc.name}" (${accCurrency(acc.id)})` : "";
-    const H = csvState.header;
-    const gIn = guessCol(H, /entrat|accredit|avere|credit/i);
-    const gOut = guessCol(H, /uscit|addebit|dare|debit/i);
-    fillColSelect($("#csv-col-date"), guessCol(H, /data|date|valuta/i), false);
-    fillColSelect($("#csv-col-desc"), guessCol(H, /descr|causal|operazion|dettagl|narrativ|movimento|beneficiar/i), false);
-    fillColSelect($("#csv-col-amount"), Math.max(0, guessCol(H, /import|amount|valore|value/i)), false);
-    fillColSelect($("#csv-col-in"), gIn, true);
-    fillColSelect($("#csv-col-out"), gOut, true);
-    // se il file ha due colonne Entrate/Uscite, scegli in automatico quella modalità
-    csvState.mode = (gIn >= 0 && gOut >= 0) ? "split" : "single";
-    $$("#csv-amt-mode .seg-btn").forEach((b) => b.classList.toggle("active", b.dataset.mode === csvState.mode));
-    $("#csv-single-fields").hidden = csvState.mode !== "single";
-    $("#csv-split-fields").hidden = csvState.mode !== "split";
+    $("#csv-colmap").hidden = pdf;
+    $("#csv-title").textContent = pdf ? "Importa estratto conto (PDF)" : "Importa estratto conto";
+    if (pdf) {
+      $("#csv-account-note").textContent = acc
+        ? `${csvState.pdfRows.length} movimenti letti dal PDF · verranno aggiunti a "${acc.name}" (${accCurrency(acc.id)})` : "";
+    } else {
+      $("#csv-account-note").textContent = acc
+        ? `${csvState.rows.length} righe · verranno aggiunte a "${acc.name}" (${accCurrency(acc.id)})` : "";
+      const H = csvState.header;
+      const gIn = guessCol(H, /entrat|accredit|avere|credit/i);
+      const gOut = guessCol(H, /uscit|addebit|dare|debit/i);
+      fillColSelect($("#csv-col-date"), guessCol(H, /data|date|valuta/i), false);
+      fillColSelect($("#csv-col-desc"), guessCol(H, /descr|causal|operazion|dettagl|narrativ|movimento|beneficiar/i), false);
+      fillColSelect($("#csv-col-amount"), Math.max(0, guessCol(H, /import|amount|valore|value/i)), false);
+      fillColSelect($("#csv-col-in"), gIn, true);
+      fillColSelect($("#csv-col-out"), gOut, true);
+      csvState.mode = (gIn >= 0 && gOut >= 0) ? "split" : "single";
+      $$("#csv-amt-mode .seg-btn").forEach((b) => b.classList.toggle("active", b.dataset.mode === csvState.mode));
+      $("#csv-single-fields").hidden = csvState.mode !== "single";
+      $("#csv-split-fields").hidden = csvState.mode !== "split";
+    }
+    $("#csv-from-date").value = "";
     $("#csv-note").value = "";
     $("#csv-future-planned").checked = true;
     $("#csv-modal").hidden = false;
     renderCsvPreview();
   }
-  function closeCsvModal() { $("#csv-modal").hidden = true; }
+  function closeCsvModal() { $("#csv-modal").hidden = true; csvState.pdfRows = null; }
+
+  async function startPdfImport(file) {
+    if (!PdfImport.supported) { toast("Questo browser non può leggere i PDF: usa il file CSV"); return; }
+    toast("Leggo il PDF…");
+    try {
+      const buf = new Uint8Array(await file.arrayBuffer());
+      const pages = await PdfImport.extract(buf);
+      const { txs } = PdfImport.parseRevolut(pages);
+      if (!txs.length) { toast("Nessun movimento riconosciuto nel PDF"); return; }
+      csvState.pdfRows = txs.map((t) => ({ date: t.date, description: t.description || "Movimento", amount: t.amount }));
+      openCsvModal();
+    } catch (e) { console.error(e); toast("Non sono riuscito a leggere il PDF"); }
+  }
   function csvParsedRows() {
+    let base;
+    if (csvState.pdfRows) base = csvState.pdfRows.slice();
+    else base = csvParseFromColumns();
+    const from = $("#csv-from-date").value;
+    if (from) base = base.filter((r) => r.date >= from);
+    return base;
+  }
+  function csvParseFromColumns() {
     const di = +$("#csv-col-date").value, dsi = +$("#csv-col-desc").value;
     const out = [];
     for (const r of csvState.rows) {
@@ -2174,7 +2345,11 @@
     $("#am-import").addEventListener("click", () => { if (accEditId) $("#am-import-file").click(); });
     $("#am-import-file").addEventListener("change", (e) => {
       const f = e.target.files && e.target.files[0];
-      if (f) { csvState.accountId = accEditId; startCsvImport(f); }
+      if (f) {
+        csvState.accountId = accEditId; csvState.pdfRows = null;
+        if (/\.pdf$/i.test(f.name) || f.type === "application/pdf") startPdfImport(f);
+        else startCsvImport(f);
+      }
       e.target.value = "";
     });
     $("#csv-confirm").addEventListener("click", confirmCsvImport);
@@ -2185,7 +2360,7 @@
       $("#csv-split-fields").hidden = csvState.mode !== "split";
       renderCsvPreview();
     }));
-    ["#csv-col-date", "#csv-col-desc", "#csv-col-amount", "#csv-col-in", "#csv-col-out", "#csv-neg-out", "#csv-future-planned"].forEach((id) =>
+    ["#csv-col-date", "#csv-col-desc", "#csv-col-amount", "#csv-col-in", "#csv-col-out", "#csv-neg-out", "#csv-future-planned", "#csv-from-date"].forEach((id) =>
       $(id).addEventListener("change", renderCsvPreview));
     $("#csv-modal").addEventListener("click", (e) => { if (e.target.hasAttribute("data-close-csv")) closeCsvModal(); });
     $("#f-calc").addEventListener("click", () => openCalc("amount"));

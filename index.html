@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Mulish:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=24" />
+  <link rel="stylesheet" href="styles.css?v=25" />
   <title>Tasca</title>
 </head>
 <body>
@@ -552,9 +552,9 @@
       </div>
       <div class="field" id="am-import-block" hidden>
         <span>Estratto conto</span>
-        <button type="button" id="am-import" class="btn btn-secondary full">📄 Importa estratto conto (CSV)</button>
-        <input id="am-import-file" type="file" accept=".csv,text/csv,text/plain" hidden />
-        <p class="muted small" style="margin-top:8px">Carica il file CSV scaricato dalla banca: i movimenti verranno aggiunti a questo conto.</p>
+        <button type="button" id="am-import" class="btn btn-secondary full">📄 Importa estratto conto (CSV o PDF)</button>
+        <input id="am-import-file" type="file" accept=".csv,text/csv,text/plain,.pdf,application/pdf" hidden />
+        <p class="muted small" style="margin-top:8px">Carica il file <b>CSV</b> scaricato dalla banca oppure il <b>PDF</b> dell'estratto conto: i movimenti verranno aggiunti a questo conto.</p>
       </div>
       <button type="button" id="am-delete" class="btn btn-danger full" hidden>Elimina conto</button>
     </div>
@@ -571,23 +571,26 @@
       </div>
       <p class="muted small" id="csv-account-note" style="margin-bottom:12px"></p>
       <div class="csv-map">
-        <label class="field"><span>Colonna data</span><select id="csv-col-date" class="select-inline"></select></label>
-        <label class="field"><span>Colonna descrizione</span><select id="csv-col-desc" class="select-inline"></select></label>
-        <div class="field">
-          <span>Importi</span>
-          <div class="seg" id="csv-amt-mode">
-            <button type="button" class="seg-btn active" data-mode="single">Una colonna</button>
-            <button type="button" class="seg-btn" data-mode="split">Entrate/Uscite</button>
+        <div id="csv-colmap">
+          <label class="field"><span>Colonna data</span><select id="csv-col-date" class="select-inline"></select></label>
+          <label class="field"><span>Colonna descrizione</span><select id="csv-col-desc" class="select-inline"></select></label>
+          <div class="field">
+            <span>Importi</span>
+            <div class="seg" id="csv-amt-mode">
+              <button type="button" class="seg-btn active" data-mode="single">Una colonna</button>
+              <button type="button" class="seg-btn" data-mode="split">Entrate/Uscite</button>
+            </div>
+          </div>
+          <div id="csv-single-fields">
+            <label class="field"><span>Colonna importo</span><select id="csv-col-amount" class="select-inline"></select></label>
+            <label class="switch-row"><span>Le uscite sono numeri negativi</span><input type="checkbox" id="csv-neg-out" class="switch" checked /></label>
+          </div>
+          <div id="csv-split-fields" hidden>
+            <label class="field"><span>Colonna entrate</span><select id="csv-col-in" class="select-inline"></select></label>
+            <label class="field"><span>Colonna uscite</span><select id="csv-col-out" class="select-inline"></select></label>
           </div>
         </div>
-        <div id="csv-single-fields">
-          <label class="field"><span>Colonna importo</span><select id="csv-col-amount" class="select-inline"></select></label>
-          <label class="switch-row"><span>Le uscite sono numeri negativi</span><input type="checkbox" id="csv-neg-out" class="switch" checked /></label>
-        </div>
-        <div id="csv-split-fields" hidden>
-          <label class="field"><span>Colonna entrate</span><select id="csv-col-in" class="select-inline"></select></label>
-          <label class="field"><span>Colonna uscite</span><select id="csv-col-out" class="select-inline"></select></label>
-        </div>
+        <label class="field"><span>Importa solo dal giorno <em class="muted">(facolt.)</em></span><input id="csv-from-date" type="date" /></label>
         <label class="field"><span>Nota <em class="muted">(facolt., aggiunta a ogni riga come tag)</em></span><input id="csv-note" type="text" placeholder="Es. Scalapay, Klarna" autocomplete="off" /></label>
         <label class="switch-row"><span>Date future → programmate</span><input type="checkbox" id="csv-future-planned" class="switch" checked /></label>
         <p class="muted small">Le righe con data successiva a oggi vengono importate come operazioni previste (compaiono nella Previsione e non toccano il saldo finché non le paghi).</p>
@@ -621,6 +624,6 @@
 
   <div id="toast" class="toast" hidden></div>
 
-  <script src="app.js?v=24"></script>
+  <script src="app.js?v=25"></script>
 </body>
 </html>
