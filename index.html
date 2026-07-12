@@ -170,6 +170,15 @@
         </div>
       </div>
       <div class="settings-block">
+        <h3>Valute e cambi</h3>
+        <p class="muted">Valuta principale (per i totali complessivi) e tassi di cambio. I cambi li imposti tu, così l'app resta offline.</p>
+        <label class="field">
+          <span>Valuta principale</span>
+          <select id="base-currency" class="select-inline" style="width:100%"></select>
+        </label>
+        <div id="rates-list" class="rates-list"></div>
+      </div>
+      <div class="settings-block">
         <h3>Sicurezza</h3>
         <p class="muted">Proteggi l'app con un codice PIN.</p>
         <div class="btn-row">
@@ -249,7 +258,7 @@
 
       <form id="entry-form">
         <div class="amount-input">
-          <span class="cur">€</span>
+          <span class="cur" id="f-cur">€</span>
           <input id="f-amount" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0,00" required />
         </div>
 
@@ -450,13 +459,17 @@
         <button class="modal-save" id="am-save">Salva</button>
       </div>
       <div class="amount-input">
-        <span class="cur">€</span>
+        <span class="cur" id="am-cur">€</span>
         <input id="am-balance" type="number" inputmode="decimal" step="0.01" placeholder="0,00" />
       </div>
       <p class="muted small center" style="margin:-8px 0 16px">Saldo attuale del conto</p>
       <label class="field">
         <span>Nome</span>
         <input id="am-name" type="text" placeholder="Es. Revolut, Fideuram, BAPS" />
+      </label>
+      <label class="field">
+        <span>Valuta</span>
+        <select id="am-currency" class="select-inline" style="width:100%"></select>
       </label>
       <div class="field">
         <span>Tipo</span>

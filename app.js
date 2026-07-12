@@ -58,7 +58,7 @@
       goals: [],
       loans: [],
       favorites: [],
-      settings: { pin: null, reminders: false, lastBackup: null, theme: "light" },
+      settings: { pin: null, reminders: false, lastBackup: null, theme: "light", baseCurrency: "EUR", rates: {} },
     };
   }
   function defaultCategories() {
@@ -111,10 +111,38 @@
   function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 
-  // ---------- Formattazione ----------
-  const fmt = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
-  const money = (n) => fmt.format(n || 0);
-  const money0 = (n) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n || 0);
+  // ---------- Formattazione e valute ----------
+  function baseCurrency() { return (data.settings && data.settings.baseCurrency) || "EUR"; }
+  function currencyRate(cur) {
+    if (!cur || cur === baseCurrency()) return 1;
+    const r = data.settings && data.settings.rates && data.settings.rates[cur];
+    return r > 0 ? r : 1;
+  }
+  // valore di "amount" (in valuta "cur") espresso nella valuta base
+  function toBase(amount, cur) { return (amount || 0) * currencyRate(cur); }
+  // converte da una valuta all'altra passando dalla base
+  function convertCur(amount, from, to) {
+    const b = toBase(amount, from), rt = currencyRate(to);
+    return rt ? b / rt : b;
+  }
+  function accCurrency(accId) { const a = accById(accId); return (a && a.currency) || baseCurrency(); }
+  // assicura che esista un tasso per la valuta (default 1 = da impostare in Altro)
+  function ensureRateFor(code) {
+    if (!code || code === baseCurrency()) return;
+    if (!data.settings.rates) data.settings.rates = {};
+    if (!(data.settings.rates[code] > 0)) data.settings.rates[code] = 1;
+  }
+  const _nfCache = {};
+  function nf(cur, dec) {
+    const key = cur + "|" + dec;
+    if (!_nfCache[key]) {
+      try { _nfCache[key] = new Intl.NumberFormat("it-IT", { style: "currency", currency: cur, maximumFractionDigits: dec }); }
+      catch (e) { _nfCache[key] = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: dec }); }
+    }
+    return _nfCache[key];
+  }
+  function money(n, cur) { return nf(cur || baseCurrency(), 2).format(n || 0); }
+  function money0(n, cur) { return nf(cur || baseCurrency(), 0).format(n || 0); }
 
   function todayIso() { return isoOf(new Date()); }
   function isoOf(d) { return d.getFullYear() + "-" + p2(d.getMonth() + 1) + "-" + p2(d.getDate()); }
@@ -156,22 +184,26 @@
   function accountBalance(accId) {
     const acc = accById(accId);
     let bal = acc ? acc.opening || 0 : 0;
+    const cur = accCurrency(accId);
     for (const t of data.transactions) {
       if (t.planned) continue;
       if (t.kind === "transfer") {
         if (t.fromAccountId === accId) bal -= t.amount;
-        if (t.toAccountId === accId) bal += t.amount;
+        // il conto ricevente accredita l'importo convertito nella sua valuta
+        if (t.toAccountId === accId) bal += convertCur(t.amount, accCurrency(t.fromAccountId), cur);
       } else if (t.accountId === accId) {
         bal += t.kind === "income" ? t.amount : -t.amount;
       }
     }
     return bal;
   }
+  // saldo di un conto convertito nella valuta base (per i totali complessivi)
+  function accountBalanceBase(accId) { return toBase(accountBalance(accId), accCurrency(accId)); }
   function totalBalance() {
     return data.accounts.filter((a) => a.type !== "liability")
-      .reduce((s, a) => s + accountBalance(a.id), 0);
+      .reduce((s, a) => s + accountBalanceBase(a.id), 0);
   }
-  function netWorth() { return data.accounts.reduce((s, a) => s + accountBalance(a.id), 0); }
+  function netWorth() { return data.accounts.reduce((s, a) => s + accountBalanceBase(a.id), 0); }
 
   function plannedSorted() {
     return data.transactions.filter((t) => t.planned).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
@@ -180,7 +212,8 @@
     let income = 0, expense = 0;
     for (const t of data.transactions) {
       if (t.planned || periodKey(t.date) !== pkey) continue;
-      if (t.kind === "income") income += t.amount; else expense += t.amount;
+      const v = toBase(t.amount, accCurrency(t.accountId));
+      if (t.kind === "income") income += v; else expense += v;
     }
     return { income, expense };
   }
@@ -189,7 +222,7 @@
     const endIso = isoOf(end);
     let delta = 0;
     for (const t of plannedSorted()) {
-      if (t.date <= endIso) delta += t.kind === "income" ? t.amount : -t.amount;
+      if (t.date <= endIso) delta += (t.kind === "income" ? 1 : -1) * toBase(t.amount, accCurrency(t.accountId));
     }
     return { now: totalBalance(), future: totalBalance() + delta, delta };
   }
@@ -210,6 +243,7 @@
     renderMovimenti();
     renderResoconti();
     renderTrend();
+    renderCurrencies();
     renderBackupStatus();
     save();
   }
@@ -267,7 +301,7 @@
     const byCat = {};
     for (const t of data.transactions) {
       if (t.planned || t.kind !== "expense" || periodKey(t.date) !== pk) continue;
-      byCat[t.categoryId] = (byCat[t.categoryId] || 0) + t.amount;
+      byCat[t.categoryId] = (byCat[t.categoryId] || 0) + toBase(t.amount, accCurrency(t.accountId));
     }
     const top = Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 3);
     const tmax = top.length ? top[0][1] : 1;
@@ -304,7 +338,7 @@
             ${t.repeat !== "none" ? "· ripete" : ""}${t.auto ? ' · <span class="pill auto">auto</span>' : ""}
           </div>
         </div>
-        <span class="amount-badge ${badgeClass}">${sign}${money0(t.amount)}</span>
+        <span class="amount-badge ${badgeClass}">${sign}${money0(t.amount, accCurrency(t.accountId))}</span>
         <button class="pay-btn" data-pay="${t.id}">Paga</button>
       </div>`;
     }).join("");
@@ -322,18 +356,20 @@
     for (const g of groups) {
       const accs = data.accounts.filter((a) => g.types.includes(a.type || "payment"));
       if (!accs.length) continue;
-      const sum = accs.reduce((s, a) => s + accountBalance(a.id), 0);
+      const sum = accs.reduce((s, a) => s + accountBalanceBase(a.id), 0);
       html += `<div class="card">
         <div class="card-head"><h3>${g.label}</h3><span class="card-side">${money(sum)}</span></div>
         <div class="list inset">` +
         accs.map((a) => {
           const b = accountBalance(a.id);
+          const cur = accCurrency(a.id);
           const meta = ACCOUNT_TYPES[a.type] || ACCOUNT_TYPES.payment;
+          const curBadge = cur !== baseCurrency() ? ` · <span class="cur-badge">${esc(cur)}</span>` : "";
           return `<div class="row" data-acc-edit="${a.id}">
             <div class="row-ico">${svg(a.icon || meta.icon)}</div>
             <div class="row-main"><div class="row-title">${esc(a.name)}</div>
-              <div class="row-sub">${meta.label}</div></div>
-            <span class="acc-bal ${b < 0 ? "neg" : "pos"}">${money(b)}</span>
+              <div class="row-sub">${meta.label}${curBadge}</div></div>
+            <span class="acc-bal ${b < 0 ? "neg" : "pos"}">${money(b, cur)}</span>
           </div>`;
         }).join("") +
         `</div></div>`;
@@ -445,7 +481,7 @@
     }
     box.innerHTML = days.map((day) => {
       const list = byDay[day];
-      const net = list.reduce((s, t) => s + (t.kind === "income" ? t.amount : t.kind === "expense" ? -t.amount : 0), 0);
+      const net = list.reduce((s, t) => s + (t.kind === "income" ? 1 : t.kind === "expense" ? -1 : 0) * toBase(t.amount, accCurrency(t.accountId)), 0);
       const rows = list.map((t) => {
         if (t.kind === "transfer") {
           const fa = accById(t.fromAccountId), ta = accById(t.toAccountId);
@@ -454,7 +490,7 @@
             <div class="row-main"><div class="row-title">${esc(t.description || "Trasferimento")}</div>
               <div class="row-sub">${t.time ? t.time + " · " : ""}${fa ? esc(fa.name) : "?"} → ${ta ? esc(ta.name) : "?"}</div>
               ${tagChips(t.tags)}</div>
-            <span class="amount-plain xfer">${money(t.amount)}</span>
+            <span class="amount-plain xfer">${money(t.amount, accCurrency(t.fromAccountId))}</span>
           </div>`;
         }
         const c = catById(t.categoryId), a = accById(t.accountId);
@@ -464,7 +500,7 @@
           <div class="row-main"><div class="row-title">${esc(t.description || (c ? c.name : "Movimento"))}</div>
             <div class="row-sub">${t.time ? t.time + " · " : ""}${a ? esc(a.name) : ""}${c ? " · " + esc(c.name) : ""}</div>
             ${tagChips(t.tags)}</div>
-          <span class="amount-plain ${t.kind === "income" ? "in" : "out"}">${sign}${money(t.amount)}</span>
+          <span class="amount-plain ${t.kind === "income" ? "in" : "out"}">${sign}${money(t.amount, accCurrency(t.accountId))}</span>
         </div>`;
       }).join("");
       return `<div class="card">
@@ -495,7 +531,7 @@
             ${overdue ? '<span class="warn-ico">!</span> Scaduta · ' : ""}Prevista${a ? " · " + esc(a.name) : ""}${t.repeat !== "none" ? " · ripete" : ""}${t.auto ? ' · <span class="pill auto">auto</span>' : ""}
           </div>
         </div>
-        <span class="amount-badge ${badgeClass}">${sign}${money0(t.amount)}</span>
+        <span class="amount-badge ${badgeClass}">${sign}${money0(t.amount, accCurrency(t.accountId))}</span>
         <button class="pay-btn" data-pay="${t.id}">Paga</button>
       </div>`;
     }).join("");
@@ -512,16 +548,24 @@
 
   // Prima nota: saldo progressivo dopo ogni movimento
   function ledgerBalances(scope) {
+    const toAll = scope === "all";
     let list = data.transactions.filter((t) => !t.planned);
-    if (scope === "all") list = list.filter((t) => t.kind !== "transfer");
+    if (toAll) list = list.filter((t) => t.kind !== "transfer");
     else list = list.filter((t) => (t.accountId === scope && t.kind !== "transfer") || (t.kind === "transfer" && (t.fromAccountId === scope || t.toAccountId === scope)));
     list.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id < b.id ? -1 : 1));
-    let bal = scope === "all"
-      ? data.accounts.reduce((s, a) => s + (a.opening || 0), 0)
+    // "all": tutto in valuta base; conto singolo: nella valuta del conto
+    let bal = toAll
+      ? data.accounts.reduce((s, a) => s + toBase(a.opening || 0, accCurrency(a.id)), 0)
       : (accById(scope) ? accById(scope).opening || 0 : 0);
     const map = {};
     for (const t of list) {
-      const delta = t.kind === "transfer" ? (t.fromAccountId === scope ? -t.amount : t.amount) : (t.kind === "income" ? t.amount : -t.amount);
+      let delta;
+      if (t.kind === "transfer") {
+        delta = t.fromAccountId === scope ? -t.amount : convertCur(t.amount, accCurrency(t.fromAccountId), accCurrency(scope));
+      } else {
+        const raw = t.kind === "income" ? t.amount : -t.amount;
+        delta = toAll ? toBase(raw, accCurrency(t.accountId)) : raw;
+      }
       bal += delta;
       map[t.id] = { delta, balance: bal };
     }
@@ -539,9 +583,13 @@
       return;
     }
     const scopeLabel = scope === "all" ? "Totale conti" : (accById(scope) ? accById(scope).name : "");
+    const lcur = scope === "all" ? baseCurrency() : accCurrency(scope);
+    const opening = scope === "all"
+      ? data.accounts.reduce((s, a) => s + toBase(a.opening || 0, accCurrency(a.id)), 0)
+      : (accById(scope) ? accById(scope).opening || 0 : 0);
     let html = `<div class="card ledger-card">
       <div class="card-head"><h3>Prima nota</h3><span class="card-side">${esc(scopeLabel)}</span></div>
-      <div class="ledger-start">Saldo iniziale: <b>${money(scope === "all" ? data.accounts.reduce((s, a) => s + (a.opening || 0), 0) : (accById(scope) ? accById(scope).opening || 0 : 0))}</b></div>`;
+      <div class="ledger-start">Saldo iniziale: <b>${money(opening, lcur)}</b></div>`;
     html += rows.map((t) => {
       const info = map[t.id];
       const c = catById(t.categoryId);
@@ -556,7 +604,7 @@
       }
       return `<div class="ledger-row" data-edit="${t.id}">
         <div class="lr-left"><span class="lr-date">${cap(fmtDateShort(t.date))}${t.time ? " " + t.time : ""}</span><span class="lr-desc">${desc}</span></div>
-        <div class="lr-right"><span class="lr-amt ${cls}">${sign}${money(Math.abs(info.delta))}</span><span class="lr-bal">Saldo <b>${money(info.balance)}</b></span></div>
+        <div class="lr-right"><span class="lr-amt ${cls}">${sign}${money(Math.abs(info.delta), lcur)}</span><span class="lr-bal">Saldo <b>${money(info.balance, lcur)}</b></span></div>
       </div>`;
     }).join("");
     html += `</div>`;
@@ -577,7 +625,7 @@
     const byCat = {};
     for (const t of data.transactions) {
       if (t.planned || t.kind !== "expense" || periodKey(t.date) !== pk) continue;
-      byCat[t.categoryId] = (byCat[t.categoryId] || 0) + t.amount;
+      byCat[t.categoryId] = (byCat[t.categoryId] || 0) + toBase(t.amount, accCurrency(t.accountId));
     }
     const rows = Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 6);
     const cmax = rows.length ? rows[0][1] : 1;
@@ -755,6 +803,7 @@
     const c = catById(form.categoryId);
     $("#cat-ico").innerHTML = svg(c ? c.icon : "tag");
     $("#cat-name").textContent = c ? c.name : "Scegli…";
+    const fcur = $("#f-cur"); if (fcur) fcur.textContent = curInfo(accCurrency(form.accountId)).symbol;
     const a = accById(form.accountId);
     $("#acc-ico").innerHTML = svg(a ? a.icon || "wallet" : "wallet");
     $("#acc-name").textContent = a ? a.name : "—";
@@ -916,6 +965,31 @@
     payment: { label: "Conto", icon: "wallet" }, // compatibilità v2
   };
   const ACCOUNT_ICONS = ["bank", "wallet", "card", "trading", "coins", "savings", "loan", "home"];
+  const CURRENCIES = [
+    { code: "EUR", symbol: "€", name: "Euro" },
+    { code: "USD", symbol: "$", name: "Dollaro USA" },
+    { code: "GBP", symbol: "£", name: "Sterlina" },
+    { code: "CHF", symbol: "CHF", name: "Franco svizzero" },
+    { code: "JPY", symbol: "¥", name: "Yen giapponese" },
+    { code: "CAD", symbol: "C$", name: "Dollaro canadese" },
+    { code: "AUD", symbol: "A$", name: "Dollaro australiano" },
+    { code: "SEK", symbol: "kr", name: "Corona svedese" },
+    { code: "NOK", symbol: "kr", name: "Corona norvegese" },
+    { code: "DKK", symbol: "kr", name: "Corona danese" },
+    { code: "PLN", symbol: "zł", name: "Zloty polacco" },
+    { code: "CZK", symbol: "Kč", name: "Corona ceca" },
+    { code: "USDT", symbol: "₮", name: "Tether (USDT)" },
+    { code: "BTC", symbol: "₿", name: "Bitcoin" },
+  ];
+  function curInfo(code) { return CURRENCIES.find((c) => c.code === code) || { code, symbol: code, name: code }; }
+  // elenco valute selezionabili: quelle predefinite + eventuali già presenti nei dati
+  function knownCurrencies() {
+    const set = new Map();
+    CURRENCIES.forEach((c) => set.set(c.code, c));
+    (data.accounts || []).forEach((a) => { if (a.currency && !set.has(a.currency)) set.set(a.currency, curInfo(a.currency)); });
+    Object.keys((data.settings && data.settings.rates) || {}).forEach((k) => { if (!set.has(k)) set.set(k, curInfo(k)); });
+    return Array.from(set.values());
+  }
   const accountModal = $("#account-modal");
   let accEditId = null;
   let pendingAccSelect = false;
@@ -923,10 +997,14 @@
 
   function openAccountEditor(acc) {
     accountModal.hidden = false;
+    // popola le valute selezionabili
+    const sel = $("#am-currency");
+    if (sel) sel.innerHTML = knownCurrencies().map((c) => `<option value="${c.code}">${c.code} · ${esc(c.name)}</option>`).join("");
     if (acc) {
       accEditId = acc.id;
       accForm.type = acc.type && ACCOUNT_TYPES[acc.type] ? acc.type : "bank";
       accForm.icon = acc.icon || ACCOUNT_TYPES[accForm.type].icon;
+      accForm.currency = acc.currency || baseCurrency();
       $("#am-title").textContent = "Modifica conto";
       $("#am-name").value = acc.name;
       $("#am-balance").value = round2(accountBalance(acc.id));
@@ -934,12 +1012,19 @@
     } else {
       accEditId = null;
       accForm.type = "bank"; accForm.icon = "bank";
+      accForm.currency = baseCurrency();
       $("#am-title").textContent = "Nuovo conto";
       $("#am-name").value = "";
       $("#am-balance").value = "";
       $("#am-delete").hidden = true;
     }
+    if (sel) sel.value = accForm.currency;
+    syncAccCurrency();
     syncAccType(); syncAccIcons();
+  }
+  function syncAccCurrency() {
+    const sym = $("#am-cur");
+    if (sym) sym.textContent = curInfo(accForm.currency || baseCurrency()).symbol;
   }
   function closeAccountEditor() { accountModal.hidden = true; }
   function round2(n) { return Math.round(n * 100) / 100; }
@@ -957,14 +1042,18 @@
     const name = $("#am-name").value.trim();
     if (!name) { toast("Dai un nome al conto"); return; }
     const target = parseFloat(String($("#am-balance").value || "0").replace(",", ".")) || 0;
+    const curCode = ($("#am-currency") && $("#am-currency").value) || accForm.currency || baseCurrency();
+    ensureRateFor(curCode);
     if (accEditId) {
       const acc = accById(accEditId);
-      const current = accountBalance(accEditId);
+      const prevCur = accCurrency(accEditId);
+      // se cambia la valuta, il saldo inserito è nella NUOVA valuta
+      const current = prevCur === curCode ? accountBalance(accEditId) : target;
       acc.opening = round2((acc.opening || 0) + (target - current)); // porta il saldo al valore inserito
-      acc.name = name; acc.type = accForm.type; acc.icon = accForm.icon;
+      acc.name = name; acc.type = accForm.type; acc.icon = accForm.icon; acc.currency = curCode;
       toast("Conto aggiornato");
     } else {
-      const newAcc = { id: "acc_" + uid(), name, icon: accForm.icon, type: accForm.type, opening: target };
+      const newAcc = { id: "acc_" + uid(), name, icon: accForm.icon, type: accForm.type, opening: target, currency: curCode };
       data.accounts.push(newAcc);
       if (pendingAccSelect) { if (accPickerTarget === "to") form.toAccountId = newAcc.id; else form.accountId = newAcc.id; syncPickers(); }
       toast("Conto aggiunto");
@@ -1325,11 +1414,11 @@
 
   // ---------- Andamento del saldo ----------
   function totalAsOf(endIso) {
-    let bal = data.accounts.reduce((s, a) => s + (a.opening || 0), 0);
+    let bal = data.accounts.reduce((s, a) => s + toBase(a.opening || 0, accCurrency(a.id)), 0);
     for (const t of data.transactions) {
       if (t.planned || t.date > endIso) continue;
-      if (t.kind === "income") bal += t.amount;
-      else if (t.kind === "expense") bal -= t.amount;
+      if (t.kind === "income") bal += toBase(t.amount, accCurrency(t.accountId));
+      else if (t.kind === "expense") bal -= toBase(t.amount, accCurrency(t.accountId));
     }
     return bal;
   }
@@ -1457,24 +1546,24 @@
       .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
     let totIn = 0, totOut = 0;
     for (const t of rows) {
-      if (t.kind === "income") totIn += t.amount;
-      else if (t.kind === "expense") totOut += t.amount;
+      if (t.kind === "income") totIn += toBase(t.amount, accCurrency(t.accountId));
+      else if (t.kind === "expense") totOut += toBase(t.amount, accCurrency(t.accountId));
     }
     const accRows = data.accounts.map((a) =>
-      `<tr><td>${esc(a.name)}</td><td>${money(accountBalance(a.id))}</td></tr>`).join("");
+      `<tr><td>${esc(a.name)}</td><td>${money(accountBalance(a.id), accCurrency(a.id))}</td></tr>`).join("");
     const bodyRows = rows.map((t) => {
       let desc, cat, conto, cls, sign, amt;
       if (t.kind === "transfer") {
         const fa = accById(t.fromAccountId), ta = accById(t.toAccountId);
         desc = esc(t.description || "Trasferimento"); cat = "—";
         conto = (fa ? esc(fa.name) : "?") + " → " + (ta ? esc(ta.name) : "?");
-        cls = ""; sign = ""; amt = money(t.amount);
+        cls = ""; sign = ""; amt = money(t.amount, accCurrency(t.fromAccountId));
       } else {
         const c = catById(t.categoryId), a = accById(t.accountId);
         desc = esc(t.description || (c ? c.name : "Movimento"));
         cat = c ? esc(c.name) : "—"; conto = a ? esc(a.name) : "—";
         cls = t.kind === "income" ? "print-in" : "print-out";
-        sign = t.kind === "income" ? "+ " : "− "; amt = money(t.amount);
+        sign = t.kind === "income" ? "+ " : "− "; amt = money(t.amount, accCurrency(t.accountId));
       }
       return `<tr>
         <td>${cap(fmtDateShort(t.date))}</td>
@@ -1623,10 +1712,16 @@
     $("#add-account").addEventListener("click", () => openAccountEditor(null));
     $("#am-save").addEventListener("click", saveAccount);
     $("#am-delete").addEventListener("click", deleteAccount);
+    $("#am-currency").addEventListener("change", (e) => { accForm.currency = e.target.value; syncAccCurrency(); });
     $("#btn-set-pin").addEventListener("click", setPinFlow);
     $("#btn-remove-pin").addEventListener("click", removePinFlow);
     $("#btn-reminders").addEventListener("click", enableReminders);
     $$("#theme-seg .seg-btn").forEach((b) => b.addEventListener("click", () => setTheme(b.dataset.theme)));
+    $("#base-currency").addEventListener("change", (e) => setBaseCurrency(e.target.value));
+    $("#rates-list").addEventListener("change", (e) => {
+      const inp = e.target.closest("[data-rate]");
+      if (inp) setRate(inp.dataset.rate, inp.value);
+    });
     $("#lock-pad").addEventListener("click", (e) => { const k = e.target.closest("[data-key]"); if (k) pressKey(k.dataset.key); });
     $("#add-goal").addEventListener("click", () => openGoalEditor(null));
     $("#gm-save").addEventListener("click", saveGoal);
@@ -1681,7 +1776,12 @@
   }
 
   // ---------- Blocco con PIN ----------
-  function settings() { if (!data.settings) data.settings = { pin: null, reminders: false }; return data.settings; }
+  function settings() {
+    if (!data.settings) data.settings = { pin: null, reminders: false };
+    if (!data.settings.baseCurrency) data.settings.baseCurrency = "EUR";
+    if (!data.settings.rates) data.settings.rates = {};
+    return data.settings;
+  }
   function hashPin(s) { let h = 5381; for (const ch of String(s)) h = ((h << 5) + h + ch.charCodeAt(0)) >>> 0; return "h" + h; }
 
   const lock = $("#lock-screen");
@@ -1751,6 +1851,59 @@
   function syncThemeButtons() {
     const t = settings().theme === "dark" ? "dark" : "light";
     $$("#theme-seg .seg-btn").forEach((b) => b.classList.toggle("active", b.dataset.theme === t));
+  }
+
+  // ---------- Valute e cambi ----------
+  function renderCurrencies() {
+    const sel = $("#base-currency");
+    if (sel) {
+      sel.innerHTML = knownCurrencies().map((c) => `<option value="${c.code}">${c.code} · ${esc(c.name)}</option>`).join("");
+      sel.value = baseCurrency();
+    }
+    const box = $("#rates-list");
+    if (!box) return;
+    const base = baseCurrency();
+    // valute effettivamente usate dai conti, diverse dalla base
+    const used = Array.from(new Set((data.accounts || []).map((a) => a.currency || base))).filter((c) => c !== base);
+    if (!used.length) {
+      box.innerHTML = `<p class="muted small" style="margin-top:10px">Tutti i conti sono in ${esc(base)}. Se crei un conto in un'altra valuta, qui potrai impostarne il cambio.</p>`;
+      return;
+    }
+    box.innerHTML = used.map((c) => {
+      const rate = currencyRate(c);
+      return `<div class="rate-row">
+        <span class="rate-label">1 ${esc(c)} =</span>
+        <input class="rate-input" type="number" inputmode="decimal" step="0.0001" min="0" value="${rate}" data-rate="${esc(c)}" />
+        <span class="rate-base">${esc(base)}</span>
+      </div>`;
+    }).join("");
+  }
+  function setRate(code, value) {
+    const v = parseFloat(String(value).replace(",", "."));
+    if (!data.settings.rates) data.settings.rates = {};
+    if (v > 0) data.settings.rates[code] = v;
+    save();
+    // rimanda il render per non distruggere l'input mentre gestisce il change
+    setTimeout(render, 0);
+  }
+  function setBaseCurrency(newBase) {
+    const oldBase = baseCurrency();
+    if (!newBase || newBase === oldBase) return;
+    const rates = data.settings.rates || {};
+    // valore di 1 unità di newBase espresso nella vecchia base
+    const rNewInOld = rates[newBase] > 0 ? rates[newBase] : 1;
+    const codes = new Set(Object.keys(rates)); codes.add(oldBase);
+    const newRates = {};
+    codes.forEach((cur) => {
+      if (cur === newBase) return; // diventa la base, tasso implicito 1
+      const rCurInOld = cur === oldBase ? 1 : (rates[cur] > 0 ? rates[cur] : 1);
+      newRates[cur] = round2(rCurInOld / rNewInOld * 10000) / 10000;
+    });
+    data.settings.baseCurrency = newBase;
+    data.settings.rates = newRates;
+    save();
+    setTimeout(render, 0); // rimanda per non distruggere la select durante il change
+    toast("Valuta principale: " + newBase);
   }
 
   // ---------- Promemoria ----------

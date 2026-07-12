@@ -137,6 +137,14 @@ main { max-width: 720px; margin: 0 auto; padding: 0 16px; }
 .tag-suggest:empty { display: none; }
 .tag-opt { border: 1px solid var(--line); background: var(--cream); color: var(--ink); font-family: inherit; font-size: 12.5px; font-weight: 600; padding: 5px 11px; border-radius: 999px; cursor: pointer; }
 .tag-opt::before { content: "#"; opacity: .5; }
+/* Valute */
+.cur-badge { display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: .5px; color: var(--terra); background: var(--terra-soft); padding: 1px 6px; border-radius: 6px; }
+.rates-list { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+.rate-row { display: flex; align-items: center; gap: 8px; }
+.rate-label { font-size: 14px; font-weight: 700; flex: 0 0 auto; white-space: nowrap; }
+.rate-input { flex: 1 1 auto; min-width: 0; border: 1px solid var(--line); background: var(--cream); color: var(--ink); border-radius: 12px; padding: 10px 12px; font-size: 16px; font-family: inherit; }
+.rate-input:focus { outline: 2px solid var(--terra); border-color: transparent; }
+.rate-base { font-size: 14px; font-weight: 700; color: var(--muted); flex: 0 0 auto; }
 
 .amount-badge { font-weight: 700; font-size: 13px; padding: 5px 12px; border-radius: 999px; white-space: nowrap; }
 .amount-badge.plan-out { background: var(--terra-soft); color: var(--terra); }
