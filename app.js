@@ -3,7 +3,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v13";
+  const APP_VERSION = "v14";
 
   // ---------- Icone (SVG inline) ----------
   const ICONS = {
@@ -305,30 +305,13 @@
         : `${days} giorni · nessuna spesa programmata in arrivo`;
     }
 
-    // Conti — grafico a barre orizzontali (proporzioni in valuta base, importi in valuta del conto)
+    // Conti — grafico a torta (donut) + legenda
     const nw = netWorth();
     const nwEl = $("#dash-networth");
     nwEl.textContent = money(nw);
     nwEl.classList.toggle("neg", nw < 0);
     nwEl.classList.toggle("pos", nw >= 0);
-    const daccBox = $("#dash-accounts");
-    const balances = data.accounts.map((a) => ({ a, b: accountBalance(a.id), bb: accountBalanceBase(a.id) }));
-    const maxAbs = Math.max(1, ...balances.map((x) => Math.abs(x.bb)));
-    const totPos = balances.reduce((s, x) => s + (x.bb > 0 ? x.bb : 0), 0) || 1;
-    daccBox.innerHTML = balances.map(({ a, b, bb }) => {
-      const pct = Math.max(2, Math.abs(bb) / maxAbs * 100);
-      const share = bb > 0 ? Math.round(bb / totPos * 100) : 0;
-      const cls = bb < 0 ? "neg" : "pos";
-      return `<div class="acc-bar-row" data-goto="bilancio">
-        <div class="acc-bar-top">
-          <span class="abr-ico">${svg(a.icon || "wallet")}</span>
-          <span class="abr-name">${esc(a.name)}</span>
-          <span class="abr-pct">${bb > 0 ? share + "%" : "—"}</span>
-          <b class="abr-val ${cls}">${money(b, accCurrency(a.id))}</b>
-        </div>
-        <div class="acc-bar"><i class="${cls}" style="width:${pct}%"></i></div>
-      </div>`;
-    }).join("");
+    renderAccountsDonut();
 
     // Top spese del mese
     const byCat = {};
@@ -346,6 +329,47 @@
     }).join("") : `<div class="empty">Nessuna spesa registrata questo mese.</div>`;
 
     renderGoals();
+  }
+
+  // Grafico a torta (donut) dei conti + legenda
+  const ACC_COLORS = ["#B4573F", "#1E4A4E", "#C1913F", "#5C8A63", "#8C6D9C", "#4A7BA6", "#C97F5D", "#7A8450"];
+  function renderAccountsDonut() {
+    const box = $("#dash-accounts");
+    if (!box) return;
+    const accs = data.accounts.map((a) => ({ a, b: accountBalance(a.id), bb: accountBalanceBase(a.id) }));
+    const pos = accs.filter((x) => x.bb > 0);
+    const totPos = pos.reduce((s, x) => s + x.bb, 0);
+    const colorOf = {};
+    pos.forEach((x, i) => { colorOf[x.a.id] = ACC_COLORS[i % ACC_COLORS.length]; });
+
+    let donut = "";
+    if (totPos > 0) {
+      const R = 42, C = 2 * Math.PI * R, W = 20;
+      let off = 0;
+      const slices = pos.map((x) => {
+        const len = C * (x.bb / totPos);
+        const gap = pos.length > 1 ? 1.5 : 0; // piccolo stacco tra fette
+        const seg = `<circle cx="60" cy="60" r="${R}" fill="none" stroke="${colorOf[x.a.id]}" stroke-width="${W}" stroke-dasharray="${Math.max(0, len - gap)} ${C - Math.max(0, len - gap)}" stroke-dashoffset="${-off}"/>`;
+        off += len;
+        return seg;
+      }).join("");
+      donut = `<svg viewBox="0 0 120 120" class="donut"><g transform="rotate(-90 60 60)">${slices}</g></svg>`;
+    } else {
+      donut = `<div class="donut-empty">—</div>`;
+    }
+
+    const legend = accs.map((x) => {
+      const share = x.bb > 0 && totPos > 0 ? Math.round(x.bb / totPos * 100) : null;
+      const dot = x.bb > 0 ? colorOf[x.a.id] : "var(--muted)";
+      return `<div class="acc-leg-row" data-goto="bilancio">
+        <span class="alr-dot" style="background:${dot}"></span>
+        <span class="alr-name">${esc(x.a.name)}</span>
+        <span class="alr-pct">${share != null ? share + "%" : "—"}</span>
+        <b class="alr-val ${x.b < 0 ? "neg" : ""}">${money(x.b, accCurrency(x.a.id))}</b>
+      </div>`;
+    }).join("");
+
+    box.innerHTML = `<div class="acc-donut">${donut}</div><div class="acc-legend">${legend}</div>`;
   }
 
   // In scadenza / da pagare — vive nella tab Giornaliero

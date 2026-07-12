@@ -18,7 +18,7 @@
   <main id="app">
     <!-- OGGI -->
     <section id="tab-oggi" class="tab-panel active">
-      <header class="page-head">
+      <header class="page-head dash-head">
         <div class="date-block">
           <span class="date-day" id="today-num">11</span>
           <span class="date-rest">
@@ -26,13 +26,12 @@
             <span id="today-my">Luglio 2026</span>
           </span>
         </div>
+        <div class="hero-balance">
+          <span class="hero-label">Saldo attuale</span>
+          <span id="hero-balance" class="hero-value">€ 0,00</span>
+        </div>
       </header>
-
-      <div class="hero-balance">
-        <span class="hero-label">Saldo attuale</span>
-        <span id="hero-balance" class="hero-value">€ 0,00</span>
-        <span id="hero-forecast" class="hero-forecast"></span>
-      </div>
+      <span id="hero-forecast" class="hero-forecast"></span>
 
       <div class="stat-cards">
         <div class="stat-card in">
@@ -69,7 +68,7 @@
 
       <div class="card">
         <div class="card-head"><h3>Conti</h3></div>
-        <div id="dash-accounts" class="acc-bars"></div>
+        <div id="dash-accounts" class="acc-donut-wrap"></div>
         <div class="acc-total"><span>Totale</span><b id="dash-networth">€ 0,00</b></div>
       </div>
 
