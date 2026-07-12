@@ -3,7 +3,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v21";
+  const APP_VERSION = "v22";
 
   // ---------- Icone (SVG inline) ----------
   const ICONS = {
@@ -1322,6 +1322,8 @@
 
   // ---------- Finanziamenti ----------
   function loanResiduo(l) { return l.residuo > 0 ? l.residuo : Math.max(0, (l.months || 0) - (l.paid || 0)) * (l.rata || 0); }
+  // Tipo finanziamento: se non impostato, lo deduce dal nome (retrocompatibilità).
+  function loanTipo(l) { return l.tipo || (/\bmutu/i.test(l.name || "") ? "mutuo" : "prestito"); }
   // Stima il tasso mensile dal piano corrente (rata, residuo capitale, rate rimaste),
   // così possiamo scomporre la rata in quota capitale e quota interessi.
   function loanMonthlyRate(l) {
@@ -1425,18 +1427,25 @@
         <p class="pe-note">Inserisci il <b>residuo capitale</b> del finanziamento (lo trovi nell'estratto della banca) per stimare quanto costerebbe chiuderlo oggi.</p>
       </div>`;
     }
-    // Credito al consumo (prestiti): penale max 1% del capitale, 0,5% se manca meno di 1 anno.
-    const pct = remaining > 12 ? 1 : 0.5;
+    // Penale: mutuo prima casa (dal 2007) → 0; prestito/credito al consumo → max 1%, 0,5% se manca <1 anno.
+    const mutuo = loanTipo(l) === "mutuo";
+    const pct = mutuo ? 0 : (remaining > 12 ? 1 : 0.5);
     const penale = round2(l.residuo * pct / 100);
     const totale = round2(l.residuo + penale);
     const risparmio = interessi !== null ? round2(interessi - penale) : null;
+    const penaleRow = mutuo
+      ? `<div class="plan-sum-row"><span>Penale estinzione (mutuo)</span><b>0,00 €</b></div>`
+      : `<div class="plan-sum-row"><span>Penale stimata (${String(pct).replace(".", ",")}%)</span><b>${money(penale)}</b></div>`;
+    const note = mutuo
+      ? `Per i <b>mutui prima casa</b> stipulati dal 2007 la penale è <b>zero</b> per legge. Il conteggio esatto (interessi maturati al giorno) lo fornisce sempre la banca.`
+      : `Stima per <b>prestiti / credito al consumo</b>: penale max 1% del capitale (0,5% se manca meno di un anno). Il conteggio esatto lo fornisce sempre la banca.`;
     return `<div class="plan-estinzione">
       <div class="pe-title">Se estingui in anticipo oggi</div>
       <div class="plan-sum-row"><span>Capitale residuo da restituire</span><b>${money(l.residuo)}</b></div>
-      <div class="plan-sum-row"><span>Penale stimata (${String(pct).replace(".", ",")}%)</span><b>${money(penale)}</b></div>
+      ${penaleRow}
       <div class="plan-sum-row pe-tot"><span>Totale per chiudere</span><b>${money(totale)}</b></div>
       ${risparmio !== null ? `<div class="plan-sum-row pe-save"><span>Risparmi in interessi futuri</span><b>${money(risparmio)}</b></div>` : ""}
-      <p class="pe-note">Stima per <b>prestiti / credito al consumo</b>. Per i <b>mutui prima casa</b> stipulati dal 2007 la penale è <b>zero</b>: chiuderesti con ${money(l.residuo)}. Il conteggio esatto lo fornisce sempre la banca.</p>
+      <p class="pe-note">${note}</p>
     </div>`;
   }
 
@@ -1497,7 +1506,7 @@
         <tr><td><b>Totale ancora da pagare</b></td><td><b>${money(totale)}</b></td></tr>
         ${l.residuo > 0 ? `<tr><td>Residuo capitale (banca)</td><td>${money(l.residuo)}</td></tr>` : ""}
         ${l.residuo > 0 && totale > l.residuo ? `<tr><td>Interessi ancora da pagare</td><td>${money(totale - l.residuo)}</td></tr>` : ""}
-        ${l.residuo > 0 ? (() => { const pct = rows.length > 12 ? 1 : 0.5; const pen = round2(l.residuo * pct / 100); return `<tr><td>Estinzione anticipata (stima, prestiti)</td><td>${money(round2(l.residuo + pen))} <span style="color:#888">(capitale + penale ${String(pct).replace(".", ",")}%)</span></td></tr>`; })() : ""}
+        ${l.residuo > 0 ? (() => { const mutuo = loanTipo(l) === "mutuo"; const pct = mutuo ? 0 : (rows.length > 12 ? 1 : 0.5); const pen = round2(l.residuo * pct / 100); return `<tr><td>Estinzione anticipata (stima)</td><td>${money(round2(l.residuo + pen))} <span style="color:#888">(${mutuo ? "mutuo, penale 0" : "capitale + penale " + String(pct).replace(".", ",") + "%"})</span></td></tr>`; })() : ""}
       </table>
       <div class="print-section-title">Rate</div>
       <table class="print-table">
@@ -1577,6 +1586,7 @@
 
   const loanModal = $("#loan-modal");
   let loanEditId = null;
+  let lmTipo = "prestito";
   function openLoanEditor(loan) {
     loanModal.hidden = false;
     const accSel = $("#lm-account");
@@ -1590,6 +1600,7 @@
       $("#lm-residuo").value = loan.residuo > 0 ? loan.residuo : "";
       $("#lm-next").value = loan.nextDue || "";
       $("#lm-auto").checked = loan.auto !== false;
+      lmTipo = loanTipo(loan);
       $("#lm-delete").hidden = false;
     } else {
       loanEditId = null;
@@ -1597,9 +1608,11 @@
       $("#lm-rata").value = ""; $("#lm-name").value = "";
       $("#lm-months").value = ""; $("#lm-paid").value = "0"; $("#lm-day").value = ""; $("#lm-residuo").value = "";
       $("#lm-next").value = ""; $("#lm-auto").checked = true;
+      lmTipo = "prestito";
       accSel.value = data.accounts[0] ? data.accounts[0].id : "";
       $("#lm-delete").hidden = true;
     }
+    $$("#lm-type-chips .chip").forEach((c) => c.classList.toggle("active", c.dataset.tipo === lmTipo));
   }
   function closeLoanEditor() { loanModal.hidden = true; }
   function saveLoan() {
@@ -1616,12 +1629,13 @@
     if (!(rata > 0) || !(months > 0)) { toast("Inserisci rata e numero rate"); return; }
     if (!data.loans) data.loans = [];
     let loan, isEdit = false;
+    const tipo = lmTipo || "prestito";
     if (loanEditId) {
       loan = data.loans.find((x) => x.id === loanEditId); isEdit = true;
-      Object.assign(loan, { name, rata, months, paid, dayOfMonth, accountId, residuo, nextDue, auto });
+      Object.assign(loan, { name, rata, months, paid, dayOfMonth, accountId, residuo, nextDue, auto, tipo });
       toast("Finanziamento aggiornato");
     } else {
-      loan = { id: "loan_" + uid(), name, rata, months, paid, dayOfMonth, accountId, residuo, nextDue, auto };
+      loan = { id: "loan_" + uid(), name, rata, months, paid, dayOfMonth, accountId, residuo, nextDue, auto, tipo };
       data.loans.push(loan);
       toast("Finanziamento aggiunto");
     }
@@ -2058,6 +2072,8 @@
       if (accIcon) { accForm.icon = accIcon.dataset.accIcon; syncAccIcons(); return; }
       const accType = e.target.closest("#am-type-chips .chip");
       if (accType) { accForm.type = accType.dataset.type; accForm.icon = ACCOUNT_TYPES[accForm.type].icon; syncAccType(); syncAccIcons(); return; }
+      const loanTipoChip = e.target.closest("#lm-type-chips .chip");
+      if (loanTipoChip) { lmTipo = loanTipoChip.dataset.tipo; $$("#lm-type-chips .chip").forEach((c) => c.classList.toggle("active", c === loanTipoChip)); return; }
       if (e.target.hasAttribute("data-close-am")) { closeAccountEditor(); return; }
 
       const catPick = e.target.closest("[data-cat]");
