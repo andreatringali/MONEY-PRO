@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Mulish:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=17" />
+  <link rel="stylesheet" href="styles.css?v=18" />
   <title>Tasca</title>
 </head>
 <body>
@@ -63,12 +63,6 @@
         </div>
       </div>
 
-      <!-- Prossimi movimenti (timeline) -->
-      <div class="card">
-        <div class="card-head"><h3>Prossimi movimenti</h3><button class="link-btn" data-goto="movimenti">Vedi tutti</button></div>
-        <div id="dash-upcoming" class="timeline"></div>
-      </div>
-
       <div class="card">
         <div class="card-head"><h3>Obiettivi</h3><button id="add-goal" class="link-btn">Aggiungi</button></div>
         <div id="goals-list" class="goals"></div>
@@ -78,6 +72,12 @@
         <div class="card-head"><h3>Conti</h3></div>
         <div id="dash-accounts" class="acc-donut-wrap"></div>
         <div class="acc-total"><span>Totale</span><b id="dash-networth">€ 0,00</b></div>
+      </div>
+
+      <!-- Prossimi movimenti (timeline) -->
+      <div class="card">
+        <div class="card-head"><h3>Prossimi movimenti</h3><button class="link-btn" data-goto="movimenti">Vedi tutti</button></div>
+        <div id="dash-upcoming" class="timeline"></div>
       </div>
 
       <div class="card">
@@ -610,6 +610,6 @@
 
   <div id="toast" class="toast" hidden></div>
 
-  <script src="app.js?v=17"></script>
+  <script src="app.js?v=18"></script>
 </body>
 </html>
