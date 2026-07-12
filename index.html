@@ -539,7 +539,47 @@
         <span>Icona</span>
         <div class="icon-choices" id="am-icon-row"></div>
       </div>
+      <div class="field" id="am-import-block" hidden>
+        <span>Estratto conto</span>
+        <button type="button" id="am-import" class="btn btn-secondary full">📄 Importa estratto conto (CSV)</button>
+        <input id="am-import-file" type="file" accept=".csv,text/csv,text/plain" hidden />
+        <p class="muted small" style="margin-top:8px">Carica il file CSV scaricato dalla banca: i movimenti verranno aggiunti a questo conto.</p>
+      </div>
       <button type="button" id="am-delete" class="btn btn-danger full" hidden>Elimina conto</button>
+    </div>
+  </div>
+
+  <!-- MODALE IMPORT ESTRATTO CONTO (CSV) -->
+  <div id="csv-modal" class="modal" hidden>
+    <div class="modal-backdrop" data-close-csv></div>
+    <div class="modal-card csv-card">
+      <div class="modal-head">
+        <button class="modal-cancel" data-close-csv>Annulla</button>
+        <h3 id="csv-title">Importa estratto conto</h3>
+        <button class="modal-save" id="csv-confirm">Importa</button>
+      </div>
+      <p class="muted small" id="csv-account-note" style="margin-bottom:12px"></p>
+      <div class="csv-map">
+        <label class="field"><span>Colonna data</span><select id="csv-col-date" class="select-inline"></select></label>
+        <label class="field"><span>Colonna descrizione</span><select id="csv-col-desc" class="select-inline"></select></label>
+        <div class="field">
+          <span>Importi</span>
+          <div class="seg" id="csv-amt-mode">
+            <button type="button" class="seg-btn active" data-mode="single">Una colonna</button>
+            <button type="button" class="seg-btn" data-mode="split">Entrate/Uscite</button>
+          </div>
+        </div>
+        <div id="csv-single-fields">
+          <label class="field"><span>Colonna importo</span><select id="csv-col-amount" class="select-inline"></select></label>
+          <label class="switch-row"><span>Le uscite sono numeri negativi</span><input type="checkbox" id="csv-neg-out" class="switch" checked /></label>
+        </div>
+        <div id="csv-split-fields" hidden>
+          <label class="field"><span>Colonna entrate</span><select id="csv-col-in" class="select-inline"></select></label>
+          <label class="field"><span>Colonna uscite</span><select id="csv-col-out" class="select-inline"></select></label>
+        </div>
+      </div>
+      <div class="csv-summary" id="csv-summary"></div>
+      <div class="csv-preview" id="csv-preview"></div>
     </div>
   </div>
 

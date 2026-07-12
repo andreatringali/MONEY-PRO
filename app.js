@@ -3,7 +3,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v7";
+  const APP_VERSION = "v8";
 
   // ---------- Icone (SVG inline) ----------
   const ICONS = {
@@ -1038,6 +1038,7 @@
       $("#am-name").value = acc.name;
       $("#am-balance").value = round2(accountBalance(acc.id));
       $("#am-delete").hidden = data.accounts.length <= 1;
+      $("#am-import-block").hidden = false;
     } else {
       accEditId = null;
       accForm.type = "bank"; accForm.icon = "bank";
@@ -1046,6 +1047,7 @@
       $("#am-name").value = "";
       $("#am-balance").value = "";
       $("#am-delete").hidden = true;
+      $("#am-import-block").hidden = true; // l'import è disponibile dopo aver creato il conto
     }
     if (sel) sel.value = accForm.currency;
     syncAccCurrency();
@@ -1057,6 +1059,156 @@
   }
   function closeAccountEditor() { accountModal.hidden = true; }
   function round2(n) { return Math.round(n * 100) / 100; }
+
+  // ---------- Import estratto conto (CSV) ----------
+  const csvState = { accountId: null, rows: [], header: [], mode: "single" };
+
+  function parseCSV(text, delim) {
+    const rows = []; let row = [], field = "", inQ = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (inQ) {
+        if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQ = false; }
+        else field += c;
+      } else if (c === '"') inQ = true;
+      else if (c === delim) { row.push(field); field = ""; }
+      else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+      else if (c !== "\r") field += c;
+    }
+    if (field.length || row.length) { row.push(field); rows.push(row); }
+    return rows;
+  }
+  function detectDelim(firstLine) {
+    const counts = { ";": 0, ",": 0, "\t": 0 };
+    let inQ = false;
+    for (const c of firstLine) { if (c === '"') inQ = !inQ; else if (!inQ && counts[c] !== undefined) counts[c]++; }
+    return Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
+  }
+  function parseCsvDate(s) {
+    s = String(s || "").trim();
+    let m = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/); // YYYY-MM-DD
+    if (m) return `${m[1]}-${p2(+m[2])}-${p2(+m[3])}`;
+    m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/); // DD/MM/YYYY
+    if (m) { let y = +m[3]; if (y < 100) y += 2000; return `${y}-${p2(+m[2])}-${p2(+m[1])}`; }
+    return null;
+  }
+  function parseCsvAmount(s) {
+    s = String(s == null ? "" : s).replace(/[^\d.,\-]/g, "").trim();
+    if (!s) return null;
+    const hasC = s.includes(","), hasD = s.includes(".");
+    if (hasC && hasD) { // l'ultimo separatore è quello decimale
+      if (s.lastIndexOf(",") > s.lastIndexOf(".")) s = s.replace(/\./g, "").replace(",", ".");
+      else s = s.replace(/,/g, "");
+    } else if (hasC) s = s.replace(",", ".");
+    const n = parseFloat(s);
+    return isNaN(n) ? null : n;
+  }
+  function guessCol(header, patterns) {
+    for (let i = 0; i < header.length; i++) if (patterns.test(header[i])) return i;
+    return -1;
+  }
+  function startCsvImport(file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = String(reader.result || "");
+      const firstLine = text.split("\n")[0] || "";
+      const delim = detectDelim(firstLine);
+      const all = parseCSV(text, delim).filter((r) => r.some((c) => String(c).trim() !== ""));
+      if (all.length < 2) { toast("CSV vuoto o non riconosciuto"); return; }
+      csvState.header = all[0].map((h) => h.trim());
+      csvState.rows = all.slice(1);
+      openCsvModal();
+    };
+    reader.readAsText(file);
+  }
+  function fillColSelect(sel, guessIdx, allowNone) {
+    const opts = (allowNone ? `<option value="-1">—</option>` : "") +
+      csvState.header.map((h, i) => `<option value="${i}">${esc(h || ("Colonna " + (i + 1)))}</option>`).join("");
+    sel.innerHTML = opts;
+    sel.value = String(guessIdx);
+  }
+  function openCsvModal() {
+    const acc = accById(csvState.accountId);
+    $("#csv-account-note").textContent = acc
+      ? `${csvState.rows.length} righe · verranno aggiunte a "${acc.name}" (${accCurrency(acc.id)})` : "";
+    const H = csvState.header;
+    const gIn = guessCol(H, /entrat|accredit|avere|credit/i);
+    const gOut = guessCol(H, /uscit|addebit|dare|debit/i);
+    fillColSelect($("#csv-col-date"), guessCol(H, /data|date|valuta/i), false);
+    fillColSelect($("#csv-col-desc"), guessCol(H, /descr|causal|operazion|dettagl|narrativ|movimento|beneficiar/i), false);
+    fillColSelect($("#csv-col-amount"), Math.max(0, guessCol(H, /import|amount|valore|value/i)), false);
+    fillColSelect($("#csv-col-in"), gIn, true);
+    fillColSelect($("#csv-col-out"), gOut, true);
+    // se il file ha due colonne Entrate/Uscite, scegli in automatico quella modalità
+    csvState.mode = (gIn >= 0 && gOut >= 0) ? "split" : "single";
+    $$("#csv-amt-mode .seg-btn").forEach((b) => b.classList.toggle("active", b.dataset.mode === csvState.mode));
+    $("#csv-single-fields").hidden = csvState.mode !== "single";
+    $("#csv-split-fields").hidden = csvState.mode !== "split";
+    $("#csv-modal").hidden = false;
+    renderCsvPreview();
+  }
+  function closeCsvModal() { $("#csv-modal").hidden = true; }
+  function csvParsedRows() {
+    const di = +$("#csv-col-date").value, dsi = +$("#csv-col-desc").value;
+    const out = [];
+    for (const r of csvState.rows) {
+      const date = parseCsvDate(r[di]);
+      if (!date) continue;
+      let amount = null;
+      if (csvState.mode === "single") {
+        const negOut = $("#csv-neg-out").checked;
+        let v = parseCsvAmount(r[+$("#csv-col-amount").value]);
+        if (v == null) continue;
+        amount = negOut ? v : v; // il segno è già nel valore
+      } else {
+        const ii = +$("#csv-col-in").value, oi = +$("#csv-col-out").value;
+        const vin = ii >= 0 ? parseCsvAmount(r[ii]) : null;
+        const vout = oi >= 0 ? parseCsvAmount(r[oi]) : null;
+        if (vin) amount = Math.abs(vin);
+        else if (vout) amount = -Math.abs(vout);
+        else continue;
+      }
+      if (amount === 0 || amount == null) continue;
+      out.push({ date, description: String(r[dsi] || "").trim(), amount });
+    }
+    return out;
+  }
+  function renderCsvPreview() {
+    const rows = csvParsedRows();
+    const cur = accCurrency(csvState.accountId);
+    let dup = 0;
+    const fresh = rows.filter((r) => { const d = isCsvDup(r); if (d) dup++; return !d; });
+    $("#csv-summary").innerHTML = rows.length
+      ? `<b>${fresh.length}</b> movimenti da importare${dup ? ` · ${dup} già presenti (saltati)` : ""}`
+      : `Nessun movimento riconosciuto: controlla le colonne.`;
+    const show = rows.slice(0, 8);
+    $("#csv-preview").innerHTML = show.length
+      ? `<table class="csv-table"><thead><tr><th>Data</th><th>Descrizione</th><th>Importo</th></tr></thead><tbody>` +
+        show.map((r) => `<tr class="${isCsvDup(r) ? "dup" : ""}"><td>${cap(fmtDateShort(r.date))}</td><td>${esc(r.description)}</td><td class="num ${r.amount < 0 ? "out" : "in"}">${money(r.amount, cur)}</td></tr>`).join("") +
+        `</tbody></table>${rows.length > 8 ? `<p class="muted small center">…e altri ${rows.length - 8}</p>` : ""}`
+      : "";
+  }
+  function isCsvDup(r) {
+    const desc = r.description.toLowerCase();
+    return data.transactions.some((t) => !t.planned && t.accountId === csvState.accountId &&
+      t.date === r.date && Math.abs((t.kind === "income" ? t.amount : -t.amount) - r.amount) < 0.005 &&
+      String(t.description || "").toLowerCase() === desc);
+  }
+  function confirmCsvImport() {
+    const rows = csvParsedRows().filter((r) => !isCsvDup(r));
+    if (!rows.length) { toast("Nessun nuovo movimento da importare"); return; }
+    for (const r of rows) {
+      data.transactions.push({
+        id: uid(), accountId: csvState.accountId, categoryId: null,
+        kind: r.amount >= 0 ? "income" : "expense", amount: Math.abs(r.amount),
+        description: r.description, date: r.date, time: "", planned: false,
+        repeat: "none", auto: false, fromAccountId: null, toAccountId: null, groupId: "import", tags: [],
+      });
+    }
+    save(); render();
+    closeCsvModal(); closeAccountEditor();
+    toast(rows.length + (rows.length === 1 ? " movimento importato" : " movimenti importati"));
+  }
 
   function syncAccType() {
     $$("#am-type-chips .chip").forEach((b) => b.classList.toggle("active", b.dataset.type === accForm.type));
@@ -1858,6 +2010,24 @@
     $("#am-save").addEventListener("click", saveAccount);
     $("#am-delete").addEventListener("click", deleteAccount);
     $("#am-currency").addEventListener("change", (e) => { accForm.currency = e.target.value; syncAccCurrency(); });
+    // Import estratto conto CSV
+    $("#am-import").addEventListener("click", () => { if (accEditId) $("#am-import-file").click(); });
+    $("#am-import-file").addEventListener("change", (e) => {
+      const f = e.target.files && e.target.files[0];
+      if (f) { csvState.accountId = accEditId; startCsvImport(f); }
+      e.target.value = "";
+    });
+    $("#csv-confirm").addEventListener("click", confirmCsvImport);
+    $$("#csv-amt-mode .seg-btn").forEach((b) => b.addEventListener("click", () => {
+      csvState.mode = b.dataset.mode;
+      $$("#csv-amt-mode .seg-btn").forEach((x) => x.classList.toggle("active", x === b));
+      $("#csv-single-fields").hidden = csvState.mode !== "single";
+      $("#csv-split-fields").hidden = csvState.mode !== "split";
+      renderCsvPreview();
+    }));
+    ["#csv-col-date", "#csv-col-desc", "#csv-col-amount", "#csv-col-in", "#csv-col-out", "#csv-neg-out"].forEach((id) =>
+      $(id).addEventListener("change", renderCsvPreview));
+    $("#csv-modal").addEventListener("click", (e) => { if (e.target.hasAttribute("data-close-csv")) closeCsvModal(); });
     $("#f-calc").addEventListener("click", () => openCalc("amount"));
     $("#btn-calc").addEventListener("click", () => openCalc(null));
     $("#calc-use").addEventListener("click", useCalcResult);

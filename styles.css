@@ -170,6 +170,21 @@ main { max-width: 720px; margin: 0 auto; padding: 0 16px; }
 .privacy-block { background: var(--terra-soft); border-color: transparent; }
 .privacy-block p { color: var(--ink); opacity: .82; }
 
+/* Import estratto conto CSV */
+.csv-card { max-width: 460px; }
+.csv-map { display: flex; flex-direction: column; gap: 12px; margin-bottom: 14px; }
+.csv-map .select-inline { width: 100%; }
+.csv-summary { font-size: 14px; padding: 10px 12px; background: var(--cream-2); border-radius: 12px; margin-bottom: 12px; }
+.csv-summary b { color: var(--terra); }
+.csv-preview { max-height: 40vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.csv-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.csv-table th { position: sticky; top: 0; background: var(--card); text-align: left; padding: 7px 8px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); border-bottom: 1.5px solid var(--line); }
+.csv-table td { padding: 7px 8px; border-bottom: 1px solid var(--line); }
+.csv-table td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.csv-table td.num.in { color: var(--income); }
+.csv-table td.num.out { color: var(--expense); }
+.csv-table tr.dup { opacity: .4; text-decoration: line-through; }
+
 .amount-badge { font-weight: 700; font-size: 13px; padding: 5px 12px; border-radius: 999px; white-space: nowrap; }
 .amount-badge.plan-out { background: var(--terra-soft); color: var(--terra); }
 .amount-badge.plan-in { background: #E4EDE3; color: var(--income); }
