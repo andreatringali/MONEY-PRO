@@ -3,7 +3,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v16";
+  const APP_VERSION = "v17";
 
   // ---------- Icone (SVG inline) ----------
   const ICONS = {

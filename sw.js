@@ -2,12 +2,12 @@
    Strategia: network-first (quando online prende sempre l'ultima versione),
    con fallback alla cache quando sei offline. I dati restano in localStorage
    e non vengono mai toccati dagli aggiornamenti. */
-const CACHE = "moneypro-v16";
+const CACHE = "moneypro-v17";
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css",
-  "./app.js",
+  "./styles.css?v=17",
+  "./app.js?v=17",
   "./manifest.json",
   "./icons/icon.svg",
   "./icons/icon-192.png",
