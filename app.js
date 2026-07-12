@@ -3,7 +3,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v22";
+  const APP_VERSION = "v23";
 
   // ---------- Icone (SVG inline) ----------
   const ICONS = {
@@ -553,7 +553,7 @@
     // (es. la rata di un finanziamento), così cliccando sul calendario si vede la spesa prevista.
     const plannedBlock = selectedDay ? plannedDayBlock(selectedDay) : "";
 
-    if (movView === "ledger") { renderLedger(items, fa, dayBar, plannedBlock); return; }
+    if (movView === "forecast") { renderForecast(fa); return; }
 
     if (!items.length) {
       box.innerHTML = dayBar + plannedBlock +
@@ -639,69 +639,91 @@
     return d.toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "long", year: "numeric" });
   }
 
-  // Prima nota: saldo progressivo dopo ogni movimento
-  function ledgerBalances(scope) {
-    const toAll = scope === "all";
-    let list = data.transactions.filter((t) => !t.planned);
-    if (toAll) list = list.filter((t) => t.kind !== "transfer");
-    else list = list.filter((t) => (t.accountId === scope && t.kind !== "transfer") || (t.kind === "transfer" && (t.fromAccountId === scope || t.toAccountId === scope)));
-    list.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id < b.id ? -1 : 1));
-    // "all": tutto in valuta base; conto singolo: nella valuta del conto
-    let bal = toAll
-      ? data.accounts.reduce((s, a) => s + toBase(a.opening || 0, accCurrency(a.id)), 0)
-      : (accById(scope) ? accById(scope).opening || 0 : 0);
-    const map = {};
-    for (const t of list) {
-      let delta;
-      if (t.kind === "transfer") {
-        delta = t.fromAccountId === scope ? -t.amount : convertCur(t.amount, accCurrency(t.fromAccountId), accCurrency(scope));
-      } else {
-        const raw = t.kind === "income" ? t.amount : -t.amount;
-        delta = toAll ? toBase(raw, accCurrency(t.accountId)) : raw;
+  // ---------- Previsione (proiezione del saldo nel futuro) ----------
+  let forecastMonths = 3; // orizzonte in mesi
+  // Espande le operazioni programmate (incluse le ricorrenti) in singole occorrenze
+  // da oggi fino all'orizzonte, ordinate per data.
+  function forecastOccurrences(horizonIso) {
+    const today = todayIso();
+    const out = [];
+    for (const t of data.transactions) {
+      if (!t.planned || t.kind === "transfer") continue; // i trasferimenti non cambiano il totale
+      if (t.repeat && t.repeat !== "none") {
+        let d = t.date, guard = 0;
+        while (d < today && guard < 1200) { d = addInterval(d, t.repeat); guard++; }
+        while (d <= horizonIso && guard < 1200) { out.push({ t, date: d }); d = addInterval(d, t.repeat); guard++; }
+      } else if (t.date >= today && t.date <= horizonIso) {
+        out.push({ t, date: t.date });
       }
-      bal += delta;
-      map[t.id] = { delta, balance: bal };
     }
-    return map;
+    out.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    return out;
   }
-  function renderLedger(items, fa, dayBar, plannedBlock) {
-    plannedBlock = plannedBlock || "";
+  function renderForecast(fa) {
     const box = $("#movements-list");
     const scope = fa === "all" ? "all" : fa;
-    const map = ledgerBalances(scope);
-    const rows = items.filter((t) => map[t.id]); // esclude i trasferimenti nel totale
-    if (!rows.length) {
-      box.innerHTML = dayBar + plannedBlock +
-        (plannedBlock ? "" : `<div class="empty">Nessun movimento da mostrare.</div>`);
+    const cur = scope === "all" ? baseCurrency() : accCurrency(scope);
+    const startBal = scope === "all" ? totalBalance() : accountBalance(scope);
+    const scopeLabel = scope === "all" ? "Totale conti" : (accById(scope) ? accById(scope).name : "");
+
+    const hz = new Date(); hz.setMonth(hz.getMonth() + forecastMonths);
+    const horizonIso = isoOf(hz);
+    const occ = forecastOccurrences(horizonIso).filter(({ t }) => scope === "all" || t.accountId === scope);
+
+    const chips = [1, 3, 6, 12].map((m) =>
+      `<button type="button" class="seg-btn ${m === forecastMonths ? "active" : ""}" data-fc-months="${m}">${m} ${m === 1 ? "mese" : "mesi"}</button>`
+    ).join("");
+
+    let html = `<div class="card forecast-card">
+      <div class="card-head"><h3>Previsione</h3><span class="card-side">${esc(scopeLabel)}</span></div>
+      <div class="seg fc-seg">${chips}</div>
+      <div class="fc-today">
+        <div class="fc-left"><span class="fc-dot today"></span><span class="fc-desc">Oggi</span></div>
+        <div class="fc-bal-wrap"><span class="fc-bal-lab">Saldo attuale</span><b class="fc-bal ${startBal < 0 ? "neg" : ""}">${money(startBal, cur)}</b></div>
+      </div>`;
+
+    if (!occ.length) {
+      html += `<div class="empty">Nessuna entrata o uscita programmata nei prossimi ${forecastMonths} ${forecastMonths === 1 ? "mese" : "mesi"}.</div></div>`;
+      box.innerHTML = html;
       return;
     }
-    const scopeLabel = scope === "all" ? "Totale conti" : (accById(scope) ? accById(scope).name : "");
-    const lcur = scope === "all" ? baseCurrency() : accCurrency(scope);
-    const opening = scope === "all"
-      ? data.accounts.reduce((s, a) => s + toBase(a.opening || 0, accCurrency(a.id)), 0)
-      : (accById(scope) ? accById(scope).opening || 0 : 0);
-    let html = `<div class="card ledger-card">
-      <div class="card-head"><h3>Prima nota</h3><span class="card-side">${esc(scopeLabel)}</span></div>
-      <div class="ledger-start">Saldo iniziale: <b>${money(opening, lcur)}</b></div>`;
-    html += rows.map((t) => {
-      const info = map[t.id];
+
+    let bal = startBal, lastMonth = periodKey(todayIso()), firstNeg = null;
+    html += occ.map(({ t, date }) => {
+      const inc = t.kind === "income";
+      const amt = scope === "all" ? toBase(t.amount, accCurrency(t.accountId)) : t.amount;
+      bal += inc ? amt : -amt;
+      if (bal < 0 && !firstNeg) firstNeg = date;
       const c = catById(t.categoryId);
-      let desc, cls, sign;
-      if (t.kind === "transfer") {
-        const other = accById(t.fromAccountId === scope ? t.toAccountId : t.fromAccountId);
-        desc = "Trasferimento " + (t.fromAccountId === scope ? "→ " : "← ") + (other ? esc(other.name) : "");
-        cls = "xfer"; sign = info.delta >= 0 ? "+ " : "− ";
-      } else {
-        desc = esc(t.description || (c ? c.name : "Movimento"));
-        cls = t.kind === "income" ? "in" : "out"; sign = t.kind === "income" ? "+ " : "− ";
-      }
-      return `<div class="ledger-row" data-edit="${t.id}">
-        <div class="lr-left"><span class="lr-date">${cap(fmtDateShort(t.date))}${t.time ? " " + t.time : ""}</span><span class="lr-desc">${desc}</span></div>
-        <div class="lr-right"><span class="lr-amt ${cls}">${sign}${money(Math.abs(info.delta), lcur)}</span><span class="lr-bal">Saldo <b>${money(info.balance, lcur)}</b></span></div>
+      const mk = periodKey(date);
+      let sep = "";
+      if (mk !== lastMonth) { sep = `<div class="fc-month">${cap(periodLabel(mk))}</div>`; lastMonth = mk; }
+      const acc = accById(t.accountId);
+      const sub = scope === "all" && acc ? esc(acc.name) : (c ? esc(c.name) : "");
+      return `${sep}<div class="fc-row" data-edit="${t.id}">
+        <div class="fc-left">
+          <span class="fc-dot ${inc ? "in" : "out"}"></span>
+          <div class="fc-main">
+            <span class="fc-desc">${esc(t.description || (c ? c.name : "Operazione"))}</span>
+            <span class="fc-sub">${cap(fmtDateShort(date))}${sub ? " · " + sub : ""}${t.auto ? ' · <span class="pill auto">auto</span>' : ""}</span>
+          </div>
+        </div>
+        <div class="fc-bal-wrap">
+          <span class="fc-amt ${inc ? "in" : "out"}">${inc ? "+ " : "− "}${money0(t.amount, accCurrency(t.accountId))}</span>
+          <b class="fc-bal ${bal < 0 ? "neg" : ""}">${money(bal, cur)}</b>
+        </div>
       </div>`;
     }).join("");
+
+    html += `<div class="fc-end">
+      <span>Saldo previsto tra ${forecastMonths} ${forecastMonths === 1 ? "mese" : "mesi"}</span>
+      <b class="${bal < 0 ? "neg" : ""}">${money(bal, cur)}</b>
+    </div>`;
+    if (firstNeg) {
+      html += `<div class="fc-warn"><span class="warn-ico">!</span> Il saldo va sotto zero il <b>${cap(fmtDateShort(firstNeg))}</b>. Occhio alle uscite in quel periodo.</div>`;
+    }
     html += `</div>`;
-    box.innerHTML = dayBar + plannedBlock + html;
+    box.innerHTML = html;
   }
 
   function renderResoconti() {
@@ -2100,6 +2122,8 @@
         renderCalendar(); renderMovimenti(); return;
       }
       if (e.target.closest("[data-clear-day]")) { selectedDay = null; renderCalendar(); renderMovimenti(); return; }
+      const fcM = e.target.closest("[data-fc-months]");
+      if (fcM) { forecastMonths = parseInt(fcM.dataset.fcMonths, 10) || 3; renderMovimenti(); return; }
 
       if (e.target.hasAttribute("data-close")) closeModal();
       if (e.target.hasAttribute("data-close-cat")) closeCatPicker();
