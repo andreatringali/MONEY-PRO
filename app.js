@@ -3,7 +3,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v12";
+  const APP_VERSION = "v13";
 
   // ---------- Icone (SVG inline) ----------
   const ICONS = {
@@ -2286,16 +2286,20 @@
   // La Dashboard è solo consuntiva: nessun inserimento, niente FAB
   function updateFab(tab) { $("#fab").style.display = tab === "oggi" ? "none" : ""; }
 
-  bind();
-  applyTheme();
-  const av = $("#app-version"); if (av) av.textContent = APP_VERSION;
-  ensureLoanSchedules();
-  autoSettle();
-  render();
-  updateFab("oggi");
-  syncSecurityButtons();
-  syncReminderButton();
-  if (settings().pin) showLock();
-  notifyDue();
-  backupReminderOnOpen();
+  // Avvio a prova di guasto: se un passaggio fallisce (es. file disallineati in
+  // cache dopo un aggiornamento), gli altri continuano. Così i dati e le icone
+  // restano SEMPRE visibili e non sembra che i dati siano spariti.
+  function safe(fn, label) { try { fn(); } catch (e) { console.error("Tasca init:", label, e); } }
+  safe(applyTheme, "applyTheme");
+  safe(() => { const av = $("#app-version"); if (av) av.textContent = APP_VERSION; }, "version");
+  safe(ensureLoanSchedules, "ensureLoanSchedules");
+  safe(autoSettle, "autoSettle");
+  safe(render, "render");              // disegna dati e icone: eseguito presto e protetto
+  safe(bind, "bind");                  // gli eventi: se falliscono, i dati restano comunque a schermo
+  safe(() => updateFab("oggi"), "updateFab");
+  safe(syncSecurityButtons, "syncSecurityButtons");
+  safe(syncReminderButton, "syncReminderButton");
+  safe(() => { if (settings().pin) showLock(); }, "showLock");
+  safe(notifyDue, "notifyDue");
+  safe(backupReminderOnOpen, "backupReminderOnOpen");
 })();
