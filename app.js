@@ -3,7 +3,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v20";
+  const APP_VERSION = "v21";
 
   // ---------- Icone (SVG inline) ----------
   const ICONS = {
@@ -985,8 +985,8 @@
     t.auto = false;
     // finanziamento: una rata in meno, residuo che cala, prossima rata dal template
     if (loan) {
+      if (loan.residuo > 0) loan.residuo = Math.max(0, round2(loan.residuo - loanCapitalQuota(loan)));
       loan.paid = Math.min(loan.months, (loan.paid || 0) + 1);
-      if (loan.residuo > 0) loan.residuo = Math.max(0, round2(loan.residuo - loan.rata));
       loan.nextDue = loan.paid >= loan.months ? "" : addInterval(schedDate, "monthly");
       ensureLoanSchedule(loan);
     }
@@ -1322,6 +1322,24 @@
 
   // ---------- Finanziamenti ----------
   function loanResiduo(l) { return l.residuo > 0 ? l.residuo : Math.max(0, (l.months || 0) - (l.paid || 0)) * (l.rata || 0); }
+  // Stima il tasso mensile dal piano corrente (rata, residuo capitale, rate rimaste),
+  // così possiamo scomporre la rata in quota capitale e quota interessi.
+  function loanMonthlyRate(l) {
+    const P = l.residuo, R = l.rata, n = Math.max(0, (l.months || 0) - (l.paid || 0));
+    if (!(P > 0) || !(R > 0) || n <= 0) return 0;
+    if (R * n <= P + 0.005) return 0; // nessun interesse (rate ≤ capitale)
+    const f = (i) => R * (1 - Math.pow(1 + i, -n)) / i - P; // decrescente in i
+    let lo = 1e-9, hi = 1.0;
+    if (f(hi) > 0) return hi;
+    for (let k = 0; k < 100; k++) { const mid = (lo + hi) / 2; if (f(mid) > 0) lo = mid; else hi = mid; }
+    return (lo + hi) / 2;
+  }
+  // Quota capitale della prossima rata: la parte che riduce davvero il debito.
+  function loanCapitalQuota(l) {
+    if (!(l.residuo > 0)) return 0;
+    const interest = round2(l.residuo * loanMonthlyRate(l));
+    return Math.min(l.residuo, Math.max(0, round2(l.rata - interest)));
+  }
   function finanziamentiCatId() { const c = data.categories.find((x) => x.id === "finanziamenti_expense") || data.categories.find((x) => x.kind === "expense"); return c ? c.id : null; }
   function loanPlannedTx(loanId) { return data.transactions.filter((t) => t.loanId === loanId && t.planned); }
   // Programma la prossima rata del finanziamento (se non c'è già), fino alla fine del piano
@@ -1627,8 +1645,8 @@
       settlePlanned(sched, false); // conferma la prossima rata e avanza il finanziamento
     } else {
       // nessuna rata programmata: avanza comunque e registra l'uscita
+      if (l.residuo > 0) l.residuo = Math.max(0, round2(l.residuo - loanCapitalQuota(l)));
       l.paid += 1;
-      if (l.residuo > 0) l.residuo = Math.max(0, round2(l.residuo - l.rata));
       data.transactions.push({
         id: uid(), accountId: l.accountId, categoryId: finanziamentiCatId(), kind: "expense",
         amount: l.rata, description: l.name, date: todayIso(), time: "", planned: false,
