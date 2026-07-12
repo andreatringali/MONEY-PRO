@@ -208,6 +208,10 @@ main { max-width: 720px; margin: 0 auto; padding: 0 16px; }
 /* Conti — grafico a barre orizzontali */
 .acc-bars { display: flex; flex-direction: column; gap: 14px; }
 .acc-bar-row { cursor: pointer; }
+.acc-group + .acc-group { margin-top: 6px; padding-top: 14px; border-top: 1px solid var(--line); }
+.acc-group-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+.acc-group-head span:first-child { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; }
+.acc-group-head span:last-child { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .acc-total { display: flex; justify-content: space-between; align-items: baseline; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
 .acc-total span { font-size: 12.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; }
 .acc-total b { font-size: 16px; font-weight: 700; }

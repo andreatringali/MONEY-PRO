@@ -3,7 +3,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v10";
+  const APP_VERSION = "v11";
 
   // ---------- Icone (SVG inline) ----------
   const ICONS = {
@@ -378,20 +378,25 @@
   }
 
   function renderBilancio() {
-    $("#net-worth").textContent = money(netWorth());
+    const nw = netWorth();
+    const nwEl = $("#net-worth");
+    nwEl.textContent = money(nw);
+    nwEl.classList.toggle("neg", nw < 0);
+    nwEl.classList.toggle("pos", nw >= 0);
     const groups = [
       { label: "Conti di pagamento", types: ["bank", "cash", "card", "payment"] },
       { label: "Investimenti", types: ["invest"] },
       { label: "Passività", types: ["liability"] },
     ];
     const box = $("#accounts-list");
+    // tutti i conti in un unico box, con i gruppi come sezioni interne
     let html = "";
     for (const g of groups) {
       const accs = data.accounts.filter((a) => g.types.includes(a.type || "payment"));
       if (!accs.length) continue;
       const sum = accs.reduce((s, a) => s + accountBalanceBase(a.id), 0);
-      html += `<div class="card">
-        <div class="card-head"><h3>${g.label}</h3><span class="card-side">${money(sum)}</span></div>
+      html += `<div class="acc-group">
+        <div class="acc-group-head"><span>${g.label}</span><span>${money(sum)}</span></div>
         <div class="list inset">` +
         accs.map((a) => {
           const b = accountBalance(a.id);
