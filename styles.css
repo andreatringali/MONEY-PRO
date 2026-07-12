@@ -90,6 +90,15 @@ main { max-width: 720px; margin: 0 auto; padding: 0 16px; }
 .stat-card.in .sc-value { color: var(--income); }
 .stat-card.out .sc-value { color: var(--expense); }
 .stat-card.net .sc-value.neg, .stat-card.fore .sc-value.neg { color: var(--expense); }
+
+/* Disponibile davvero (safe-to-spend) */
+.card.safe-card { background: linear-gradient(135deg, var(--terra) 0%, #9C4834 100%); border: none; color: #fff; }
+.safe-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.safe-label { font-size: 13px; font-weight: 700; letter-spacing: .3px; opacity: .95; }
+.safe-until { font-size: 11.5px; opacity: .82; text-align: right; }
+.safe-value { display: block; font-family: var(--serif); font-size: 34px; font-weight: 600; margin-top: 6px; letter-spacing: .3px; }
+.safe-value.neg { color: #FFD9CC; }
+.safe-note { display: block; font-size: 12px; opacity: .85; margin-top: 4px; }
 .stat-card.fore .sc-value { color: var(--terra); }
 
 /* Totale (Conti) */
@@ -145,6 +154,21 @@ main { max-width: 720px; margin: 0 auto; padding: 0 16px; }
 .rate-input { flex: 1 1 auto; min-width: 0; border: 1px solid var(--line); background: var(--cream); color: var(--ink); border-radius: 12px; padding: 10px 12px; font-size: 16px; font-family: inherit; }
 .rate-input:focus { outline: 2px solid var(--terra); border-color: transparent; }
 .rate-base { font-size: 14px; font-weight: 700; color: var(--muted); flex: 0 0 auto; }
+
+/* Calcolatrice */
+.calc-btn { border: none; background: var(--terra-soft); font-size: 20px; line-height: 1; padding: 8px 10px; border-radius: 12px; cursor: pointer; flex: 0 0 auto; }
+.calc-card { max-width: 400px; }
+.calc-display { background: var(--cream-2); border-radius: 14px; padding: 20px 18px; text-align: right; font-family: var(--serif); font-size: 34px; font-weight: 600; margin-bottom: 14px; overflow-x: auto; white-space: nowrap; }
+.calc-pad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.calc-key { border: 1px solid var(--line); background: var(--card); color: var(--ink); font-family: inherit; font-size: 22px; font-weight: 600; padding: 16px 0; border-radius: 14px; cursor: pointer; }
+.calc-key:active { transform: scale(.96); }
+.calc-key.fn { background: var(--cream-2); color: var(--muted); font-size: 18px; }
+.calc-key.op { background: var(--terra-soft); color: var(--terra); }
+.calc-key.eq { background: var(--terra); color: #fff; }
+.calc-key.zero { grid-column: span 1; }
+
+.privacy-block { background: var(--terra-soft); border-color: transparent; }
+.privacy-block p { color: var(--ink); opacity: .82; }
 
 .amount-badge { font-weight: 700; font-size: 13px; padding: 5px 12px; border-radius: 999px; white-space: nowrap; }
 .amount-badge.plan-out { background: var(--terra-soft); color: var(--terra); }
@@ -325,6 +349,7 @@ main { max-width: 720px; margin: 0 auto; padding: 0 16px; }
 .plan-summary { background: var(--cream-2); border-radius: 14px; padding: 12px 14px; margin-bottom: 14px; }
 .plan-sum-row { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; font-size: 14px; }
 .plan-sum-row span { color: var(--muted); }
+.plan-sum-row.plan-int b { color: var(--expense); }
 .plan-list { max-height: 55vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .plan-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .plan-table th { position: sticky; top: 0; background: var(--card); text-align: left; padding: 8px 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); border-bottom: 1.5px solid var(--line); }

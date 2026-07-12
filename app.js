@@ -226,6 +226,20 @@
     }
     return { now: totalBalance(), future: totalBalance() + delta, delta };
   }
+  // "Disponibile davvero": quanto puoi spendere da qui al prossimo accredito,
+  // già tolte le spese programmate (rate, bollette) in arrivo entro quella data.
+  function computeSafe() {
+    const today = todayIso();
+    const incomes = plannedSorted().filter((t) => t.kind === "income" && t.date >= today);
+    let horizon, nextIncomeDate = null;
+    if (incomes.length) { nextIncomeDate = incomes[0].date; horizon = nextIncomeDate; }
+    else { const d = parseIso(today); horizon = isoOf(new Date(d.getFullYear(), d.getMonth() + 1, 0)); }
+    let committed = 0;
+    for (const t of plannedSorted()) {
+      if (t.kind === "expense" && t.date >= today && t.date <= horizon) committed += toBase(t.amount, accCurrency(t.accountId));
+    }
+    return { available: totalBalance() - committed, committed, horizon, nextIncomeDate };
+  }
 
   // ---------- DOM ----------
   const $ = (s) => document.querySelector(s);
@@ -276,22 +290,35 @@
     const fore = $("#dash-fore"); fore.textContent = money0(f.future);
     fore.classList.toggle("neg", f.future < 0);
 
-    // Conti — grafico a barre orizzontali
+    // Disponibile davvero (safe-to-spend)
+    const safe = computeSafe();
+    const sv = $("#safe-value");
+    if (sv) {
+      sv.textContent = money(safe.available);
+      sv.classList.toggle("neg", safe.available < 0);
+      const days = Math.max(0, Math.round((parseIso(safe.horizon) - parseIso(todayIso())) / 86400000));
+      $("#safe-until").textContent = (safe.nextIncomeDate ? "al prossimo accredito" : "a fine mese") + " · " + cap(fmtDateShort(safe.horizon));
+      $("#safe-note").textContent = safe.committed > 0
+        ? `${days} giorni · tolte le spese in arrivo (${money0(safe.committed)})`
+        : `${days} giorni · nessuna spesa programmata in arrivo`;
+    }
+
+    // Conti — grafico a barre orizzontali (proporzioni in valuta base, importi in valuta del conto)
     $("#dash-networth").textContent = "Netto " + money(netWorth());
     const daccBox = $("#dash-accounts");
-    const balances = data.accounts.map((a) => ({ a, b: accountBalance(a.id) }));
-    const maxAbs = Math.max(1, ...balances.map((x) => Math.abs(x.b)));
-    const totPos = balances.reduce((s, x) => s + (x.b > 0 ? x.b : 0), 0) || 1;
-    daccBox.innerHTML = balances.map(({ a, b }) => {
-      const pct = Math.max(2, Math.abs(b) / maxAbs * 100);
-      const share = b > 0 ? Math.round(b / totPos * 100) : 0;
-      const cls = b < 0 ? "neg" : "pos";
+    const balances = data.accounts.map((a) => ({ a, b: accountBalance(a.id), bb: accountBalanceBase(a.id) }));
+    const maxAbs = Math.max(1, ...balances.map((x) => Math.abs(x.bb)));
+    const totPos = balances.reduce((s, x) => s + (x.bb > 0 ? x.bb : 0), 0) || 1;
+    daccBox.innerHTML = balances.map(({ a, b, bb }) => {
+      const pct = Math.max(2, Math.abs(bb) / maxAbs * 100);
+      const share = bb > 0 ? Math.round(bb / totPos * 100) : 0;
+      const cls = bb < 0 ? "neg" : "pos";
       return `<div class="acc-bar-row" data-goto="bilancio">
         <div class="acc-bar-top">
           <span class="abr-ico">${svg(a.icon || "wallet")}</span>
           <span class="abr-name">${esc(a.name)}</span>
-          <span class="abr-pct">${b > 0 ? share + "%" : "—"}</span>
-          <b class="abr-val ${cls}">${money(b)}</b>
+          <span class="abr-pct">${bb > 0 ? share + "%" : "—"}</span>
+          <b class="abr-val ${cls}">${money(b, accCurrency(a.id))}</b>
         </div>
         <div class="acc-bar"><i class="${cls}" style="width:${pct}%"></i></div>
       </div>`;
@@ -1162,13 +1189,17 @@
     $("#plan-title").textContent = "Piano · " + (l.name || "Finanziamento");
     const totale = rows.reduce((s, r) => s + r.rata, 0);
     const fine = rows.length ? rows[rows.length - 1].date : null;
+    const interessi = l.residuo > 0 && totale > l.residuo ? totale - l.residuo : null;
     const capNote = l.residuo > 0
       ? `<div class="plan-sum-row"><span>Residuo capitale (banca)</span><b>${money(l.residuo)}</b></div>` : "";
+    const intNote = interessi !== null
+      ? `<div class="plan-sum-row plan-int"><span>Interessi ancora da pagare</span><b>${money(interessi)}</b></div>` : "";
     $("#plan-summary").innerHTML = `
       <div class="plan-sum-row"><span>Rate rimaste</span><b>${rows.length} di ${l.months}</b></div>
       <div class="plan-sum-row"><span>Rata mensile</span><b>${money(l.rata)}</b></div>
       <div class="plan-sum-row"><span>Totale ancora da pagare</span><b>${money(totale)}</b></div>
       ${capNote}
+      ${intNote}
       ${fine ? `<div class="plan-sum-row"><span>Ultima rata</span><b>${cap(fmtDayLong(fine))}</b></div>` : ""}`;
     $("#plan-list").innerHTML = rows.length
       ? `<table class="plan-table">
@@ -1205,6 +1236,7 @@
         <tr><td>Rata mensile</td><td>${money(l.rata)}</td></tr>
         <tr><td><b>Totale ancora da pagare</b></td><td><b>${money(totale)}</b></td></tr>
         ${l.residuo > 0 ? `<tr><td>Residuo capitale (banca)</td><td>${money(l.residuo)}</td></tr>` : ""}
+        ${l.residuo > 0 && totale > l.residuo ? `<tr><td>Interessi ancora da pagare</td><td>${money(totale - l.residuo)}</td></tr>` : ""}
       </table>
       <div class="print-section-title">Rate</div>
       <table class="print-table">
@@ -1213,6 +1245,73 @@
       </table>
       <p class="print-foot">Tasca · piano rate di ${esc(l.name || "finanziamento")}</p>`;
     window.print();
+  }
+
+  // ---------- Calcolatrice ----------
+  const calc = { display: "0", acc: null, op: null, waiting: false, target: null };
+  function openCalc(target) {
+    calc.display = "0"; calc.acc = null; calc.op = null; calc.waiting = false; calc.target = target || null;
+    // se aperta dal campo importo, precarica il valore esistente
+    if (target === "amount") {
+      const cur = String($("#f-amount").value || "").replace(",", ".");
+      if (cur && !isNaN(parseFloat(cur))) { calc.display = cur; calc.waiting = true; }
+    }
+    $("#calc-use").hidden = target !== "amount";
+    $("#calc-modal").hidden = false;
+    syncCalc();
+  }
+  function closeCalc() { $("#calc-modal").hidden = true; }
+  function syncCalc() {
+    const d = $("#calc-display");
+    if (d) d.textContent = calc.display.replace(".", ",");
+  }
+  function calcApply(a, op, b) {
+    switch (op) { case "+": return a + b; case "-": return a - b; case "*": return a * b; case "/": return b === 0 ? 0 : a / b; }
+    return b;
+  }
+  function calcKey(k) {
+    if (/^[0-9]$/.test(k)) {
+      if (calc.waiting || calc.display === "0") { calc.display = k; calc.waiting = false; }
+      else if (calc.display.replace("-", "").length < 12) calc.display += k;
+    } else if (k === ".") {
+      if (calc.waiting) { calc.display = "0."; calc.waiting = false; }
+      else if (!calc.display.includes(".")) calc.display += ".";
+    } else if (k === "C") {
+      calc.display = "0"; calc.acc = null; calc.op = null; calc.waiting = false;
+    } else if (k === "back") {
+      calc.display = calc.display.length > 1 ? calc.display.slice(0, -1) : "0";
+      if (calc.display === "-" || calc.display === "") calc.display = "0";
+    } else if (k === "%") {
+      calc.display = calcFmt((parseFloat(calc.display) || 0) / 100);
+      calc.waiting = true;
+    } else if (k === "+" || k === "-" || k === "*" || k === "/") {
+      const v = parseFloat(calc.display) || 0;
+      if (calc.op !== null && !calc.waiting) { calc.acc = calcApply(calc.acc, calc.op, v); calc.display = calcFmt(calc.acc); }
+      else calc.acc = v;
+      calc.op = k; calc.waiting = true;
+    } else if (k === "=") {
+      if (calc.op !== null && calc.acc !== null) {
+        calc.acc = calcApply(calc.acc, calc.op, parseFloat(calc.display) || 0);
+        calc.display = calcFmt(calc.acc); calc.op = null; calc.waiting = true;
+      }
+    }
+    syncCalc();
+  }
+  function calcFmt(n) {
+    const r = Math.round(n * 1e8) / 1e8;
+    return String(r);
+  }
+  function useCalcResult() {
+    // completa eventuale operazione in sospeso
+    if (calc.op !== null && calc.acc !== null && !calc.waiting) {
+      calc.acc = calcApply(calc.acc, calc.op, parseFloat(calc.display) || 0);
+      calc.display = calcFmt(calc.acc); calc.op = null;
+    }
+    const val = parseFloat(calc.display);
+    if (calc.target === "amount" && !isNaN(val)) {
+      $("#f-amount").value = round2(Math.abs(val));
+    }
+    closeCalc();
   }
 
   const loanModal = $("#loan-modal");
@@ -1478,20 +1577,64 @@
   }
 
   // ---------- Backup ----------
-  function exportData() {
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  function downloadBlob(content, filename, type) {
+    const blob = new Blob([content], { type });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url;
-    a.download = `tasca-backup-${todayIso()}.json`; a.click();
+    a.download = filename; a.click();
     URL.revokeObjectURL(url);
+  }
+  function exportData() {
+    downloadBlob(JSON.stringify(data, null, 2), `tasca-backup-${todayIso()}.json`, "application/json");
     settings().lastBackup = todayIso(); save(); renderBackupStatus();
     toast("Backup esportato");
+  }
+
+  // ---- Backup cifrato (AES-GCM + PBKDF2) ----
+  function b64(buf) { let s = ""; const b = new Uint8Array(buf); for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]); return btoa(s); }
+  function unb64(str) { return Uint8Array.from(atob(str), (c) => c.charCodeAt(0)); }
+  async function deriveKey(password, salt) {
+    const km = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveKey"]);
+    return crypto.subtle.deriveKey(
+      { name: "PBKDF2", salt, iterations: 150000, hash: "SHA-256" },
+      km, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]
+    );
+  }
+  async function exportEncrypted() {
+    if (!(crypto && crypto.subtle)) { toast("Cifratura non disponibile qui"); return; }
+    const pw = prompt("Scegli una password per cifrare il backup.\nServirà per riaprirlo: annotala, non è recuperabile.");
+    if (!pw) return;
+    try {
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const key = await deriveKey(pw, salt);
+      const cipher = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(JSON.stringify(data)));
+      const payload = { app: "tasca", enc: "aes-gcm", v: 1, salt: b64(salt), iv: b64(iv), data: b64(cipher) };
+      downloadBlob(JSON.stringify(payload), `tasca-backup-cifrato-${todayIso()}.json`, "application/json");
+      settings().lastBackup = todayIso(); save(); renderBackupStatus();
+      toast("Backup cifrato esportato");
+    } catch (e) { toast("Errore durante la cifratura"); }
+  }
+  async function importEncrypted(payload) {
+    const pw = prompt("Questo backup è cifrato. Inserisci la password:");
+    if (!pw) return;
+    try {
+      const key = await deriveKey(pw, unb64(payload.salt));
+      const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(payload.iv) }, key, unb64(payload.data));
+      const obj = JSON.parse(new TextDecoder().decode(plain));
+      if (!obj || !Array.isArray(obj.transactions)) throw 0;
+      data = Object.assign(defaultData(), obj);
+      ensureLoanSchedules(); autoSettle();
+      render(); toast("Backup importato");
+    } catch (e) { toast("Password errata o file danneggiato"); }
   }
   function importData(file) {
     const r = new FileReader();
     r.onload = () => {
+      let parsed;
+      try { parsed = JSON.parse(r.result); } catch (e) { toast("File non valido"); return; }
+      if (parsed && parsed.enc === "aes-gcm") { importEncrypted(parsed); return; }
       try {
-        const parsed = JSON.parse(r.result);
         if (!parsed || !Array.isArray(parsed.transactions)) throw 0;
         data = Object.assign(defaultData(), parsed);
         ensureLoanSchedules(); autoSettle();
@@ -1713,6 +1856,14 @@
     $("#am-save").addEventListener("click", saveAccount);
     $("#am-delete").addEventListener("click", deleteAccount);
     $("#am-currency").addEventListener("change", (e) => { accForm.currency = e.target.value; syncAccCurrency(); });
+    $("#f-calc").addEventListener("click", () => openCalc("amount"));
+    $("#btn-calc").addEventListener("click", () => openCalc(null));
+    $("#calc-use").addEventListener("click", useCalcResult);
+    $("#calc-modal").addEventListener("click", (e) => {
+      const k = e.target.closest("[data-calc]");
+      if (k) { calcKey(k.dataset.calc); return; }
+      if (e.target.hasAttribute("data-close-calc")) closeCalc();
+    });
     $("#btn-set-pin").addEventListener("click", setPinFlow);
     $("#btn-remove-pin").addEventListener("click", removePinFlow);
     $("#btn-reminders").addEventListener("click", enableReminders);
@@ -1748,6 +1899,7 @@
     }));
 
     $("#btn-export").addEventListener("click", exportData);
+    $("#btn-export-enc").addEventListener("click", exportEncrypted);
     $("#btn-export-csv").addEventListener("click", exportCSV);
     $("#btn-print").addEventListener("click", printReport);
     $("#plan-print").addEventListener("click", printLoanPlan);

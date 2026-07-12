@@ -53,6 +53,15 @@
         </div>
       </div>
 
+      <div class="card safe-card" id="safe-card">
+        <div class="safe-top">
+          <span class="safe-label">Disponibile davvero</span>
+          <span id="safe-until" class="safe-until"></span>
+        </div>
+        <span id="safe-value" class="safe-value">€ 0,00</span>
+        <span id="safe-note" class="safe-note"></span>
+      </div>
+
       <div class="card">
         <div class="card-head"><h3>Obiettivi</h3><button id="add-goal" class="link-btn">Aggiungi</button></div>
         <div id="goals-list" class="goals"></div>
@@ -88,12 +97,6 @@
     <!-- MOVIMENTI -->
     <section id="tab-movimenti" class="tab-panel">
       <header class="page-head simple"><h1>Giornaliero</h1><button class="head-add" data-add aria-label="Aggiungi">+</button></header>
-      <div id="fav-row" class="fav-row"></div>
-      <input id="search-input" class="search-input" type="search" placeholder="🔍  Cerca movimenti…" />
-      <div class="card" id="scadenze-card">
-        <div class="card-head"><h3>In scadenza</h3><span id="prev-total" class="card-side"></span></div>
-        <div id="planned-list" class="list inset"></div>
-      </div>
       <div class="card" id="calendar-card">
         <div class="cal-head">
           <button id="cal-prev" class="cal-nav" aria-label="Mese precedente">‹</button>
@@ -101,6 +104,12 @@
           <button id="cal-next" class="cal-nav" aria-label="Mese successivo">›</button>
         </div>
         <div class="cal-grid" id="cal-grid"></div>
+      </div>
+      <div id="fav-row" class="fav-row"></div>
+      <input id="search-input" class="search-input" type="search" placeholder="🔍  Cerca movimenti…" />
+      <div class="card" id="scadenze-card">
+        <div class="card-head"><h3>In scadenza</h3><span id="prev-total" class="card-side"></span></div>
+        <div id="planned-list" class="list inset"></div>
       </div>
       <div class="filters">
         <select id="filter-month" class="select-inline" aria-label="Filtra per mese"></select>
@@ -192,6 +201,11 @@
         <button id="btn-reminders" class="btn btn-secondary">Attiva promemoria</button>
       </div>
       <div class="settings-block">
+        <h3>Strumenti</h3>
+        <p class="muted">Una calcolatrice sempre a portata di mano.</p>
+        <button id="btn-calc" class="btn btn-secondary">🧮 Calcolatrice</button>
+      </div>
+      <div class="settings-block">
         <h3>Categorie</h3>
         <p class="muted">Gestisci le categorie con cui classifichi i movimenti.</p>
         <button id="manage-cats" class="btn btn-secondary">Gestisci categorie</button>
@@ -209,11 +223,16 @@
           <button id="btn-print" class="btn btn-secondary">Stampa / PDF</button>
         </div>
       </div>
+      <div class="settings-block privacy-block">
+        <h3>🔒 Privacy</h3>
+        <p class="muted">I tuoi dati restano <b>solo su questo dispositivo</b>: nessun server, nessun account, nessuno che li possa leggere. Nemmeno noi. Quando fai un backup puoi cifrarlo con una password, così il file è illeggibile se finisce nelle mani sbagliate.</p>
+      </div>
       <div class="settings-block">
         <h3>Backup dei dati</h3>
         <p class="muted">I dati sono salvati solo su questo dispositivo. Esporta un file per non perderli.</p>
         <div class="btn-row">
           <button id="btn-export" class="btn btn-secondary">Esporta</button>
+          <button id="btn-export-enc" class="btn btn-secondary">Esporta cifrato 🔒</button>
           <button id="btn-import" class="btn btn-secondary">Importa</button>
           <input id="import-file" type="file" accept="application/json" hidden />
         </div>
@@ -260,6 +279,7 @@
         <div class="amount-input">
           <span class="cur" id="f-cur">€</span>
           <input id="f-amount" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0,00" required />
+          <button type="button" id="f-calc" class="calc-btn" aria-label="Calcolatrice">🧮</button>
         </div>
 
         <button type="button" id="pick-category" class="picker-row">
@@ -406,6 +426,40 @@
       </div>
       <div id="plan-summary" class="plan-summary"></div>
       <div id="plan-list" class="plan-list"></div>
+    </div>
+  </div>
+
+  <!-- MODALE CALCOLATRICE -->
+  <div id="calc-modal" class="modal" hidden>
+    <div class="modal-backdrop" data-close-calc></div>
+    <div class="modal-card calc-card">
+      <div class="modal-head">
+        <button class="modal-cancel" data-close-calc>Chiudi</button>
+        <h3>Calcolatrice</h3>
+        <button class="modal-save" id="calc-use" hidden>Usa</button>
+      </div>
+      <div id="calc-display" class="calc-display">0</div>
+      <div class="calc-pad">
+        <button type="button" class="calc-key fn" data-calc="C">C</button>
+        <button type="button" class="calc-key fn" data-calc="back">⌫</button>
+        <button type="button" class="calc-key fn" data-calc="%">%</button>
+        <button type="button" class="calc-key op" data-calc="/">÷</button>
+        <button type="button" class="calc-key" data-calc="7">7</button>
+        <button type="button" class="calc-key" data-calc="8">8</button>
+        <button type="button" class="calc-key" data-calc="9">9</button>
+        <button type="button" class="calc-key op" data-calc="*">×</button>
+        <button type="button" class="calc-key" data-calc="4">4</button>
+        <button type="button" class="calc-key" data-calc="5">5</button>
+        <button type="button" class="calc-key" data-calc="6">6</button>
+        <button type="button" class="calc-key op" data-calc="-">−</button>
+        <button type="button" class="calc-key" data-calc="1">1</button>
+        <button type="button" class="calc-key" data-calc="2">2</button>
+        <button type="button" class="calc-key" data-calc="3">3</button>
+        <button type="button" class="calc-key op" data-calc="+">+</button>
+        <button type="button" class="calc-key zero" data-calc="0">0</button>
+        <button type="button" class="calc-key" data-calc=".">,</button>
+        <button type="button" class="calc-key eq" data-calc="=">=</button>
+      </div>
     </div>
   </div>
 
