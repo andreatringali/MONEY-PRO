@@ -1,0 +1,9 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="112" fill="#2E5D4B"/>
+  <g transform="rotate(-90 256 256)">
+    <circle cx="256" cy="256" r="120" fill="none" stroke="#F5F1E8" stroke-width="58" stroke-dasharray="527.8 226.2"/>
+    <circle cx="256" cy="256" r="120" fill="none" stroke="#D9B15E" stroke-width="58" stroke-dasharray="135.7 618.3" stroke-dashoffset="-527.8"/>
+    <circle cx="256" cy="256" r="120" fill="none" stroke="#C96A4C" stroke-width="58" stroke-dasharray="90.5 663.5" stroke-dashoffset="-663.5"/>
+  </g>
+  <text x="256" y="262" text-anchor="middle" dominant-baseline="central" font-family="Georgia, 'Times New Roman', serif" font-size="128" font-weight="700" fill="#F5F1E8">€</text>
+</svg>

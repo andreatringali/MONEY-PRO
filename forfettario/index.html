@@ -1,0 +1,189 @@
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+<meta name="theme-color" content="#2E5D4B" />
+<title>Netto — forfettario</title>
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="manifest" href="manifest.json" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Mulish:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+
+<main>
+  <!-- CASA -->
+  <section id="tab-casa" class="tab-panel active">
+    <header class="page-head"><h1>Netto</h1><span id="year-label" class="card-side"></span></header>
+
+    <div class="hero">
+      <span class="hero-label">Incassato <em id="hero-year"></em></span>
+      <span id="hero-incassato" class="hero-value">€ 0</span>
+      <span id="hero-sub" class="hero-sub"></span>
+    </div>
+
+    <div class="card result-card">
+      <div class="result-top">
+        <span class="result-label">Disponibile davvero</span>
+        <span id="res-pct" class="result-pct"></span>
+      </div>
+      <span id="res-value" class="result-value">€ 0</span>
+      <span id="res-note" class="result-note"></span>
+      <div class="split">
+        <div class="split-bar">
+          <i class="s-net" id="bar-net"></i><i class="s-inps" id="bar-inps"></i><i class="s-tax" id="bar-tax"></i>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h3>Come si divide</h3></div>
+      <div class="split-legend">
+        <span class="leg"><i class="dot net"></i><span>Tuo netto</span> <b id="lg-net">€0</b></span>
+        <span class="leg"><i class="dot inps"></i><span>Contributi INPS</span> <b id="lg-inps">€0</b></span>
+        <span class="leg"><i class="dot tax"></i><span>Imposta sostitutiva</span> <b id="lg-tax">€0</b></span>
+      </div>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat"><span class="l">Da mettere da parte</span><b class="v tax" id="st-accant">€0</b></div>
+      <div class="stat"><span class="l">Su ogni 100 € incassati</span><b class="v net" id="st-per100">€0</b></div>
+    </div>
+
+    <div class="card" id="next-sca-card" hidden>
+      <div class="card-head"><h3>Prossima scadenza</h3><button class="link-btn" data-goto="scadenze">Vedi tutte</button></div>
+      <div id="next-sca"></div>
+    </div>
+  </section>
+
+  <!-- INCASSI -->
+  <section id="tab-incassi" class="tab-panel">
+    <header class="page-head"><h1>Incassi</h1><button class="link-btn" data-add>Aggiungi</button></header>
+    <div class="seg" id="year-seg"></div>
+    <div id="incassi-list"></div>
+  </section>
+
+  <!-- SCADENZE -->
+  <section id="tab-scadenze" class="tab-panel">
+    <header class="page-head"><h1>Scadenze fiscali</h1></header>
+    <p class="muted small" style="margin-bottom:14px">Stime basate sui tuoi incassi e sul profilo. Non sostituiscono il commercialista, ma ti dicono quanto tenere pronto.</p>
+    <div id="scadenze-list"></div>
+  </section>
+
+  <!-- IMPOSTAZIONI -->
+  <section id="tab-altro" class="tab-panel">
+    <header class="page-head"><h1>Impostazioni</h1></header>
+    <div class="settings-block">
+      <h3>Profilo fiscale</h3>
+      <p class="muted">Come vengono calcolate tasse e contributi.</p>
+      <div id="profile-summary" class="muted" style="margin:10px 0 12px"></div>
+      <button id="edit-profile" class="btn btn-secondary">Modifica profilo</button>
+    </div>
+    <div class="settings-block">
+      <h3>Aspetto</h3>
+      <p class="muted">Tema chiaro o scuro.</p>
+      <div class="seg" id="theme-seg">
+        <button type="button" class="seg-btn active" data-theme="light">Chiaro</button>
+        <button type="button" class="seg-btn" data-theme="dark">Scuro</button>
+      </div>
+    </div>
+    <div class="settings-block">
+      <h3>Backup dei dati</h3>
+      <p class="muted">I dati restano solo su questo dispositivo. Esporta un file per non perderli.</p>
+      <div class="btn-row">
+        <button id="btn-export" class="btn btn-secondary">Esporta</button>
+        <button id="btn-import" class="btn btn-secondary">Importa</button>
+        <input id="import-file" type="file" accept="application/json" hidden />
+      </div>
+    </div>
+    <div class="settings-block">
+      <h3>Zona pericolosa</h3>
+      <button id="btn-reset" class="btn btn-danger">Cancella tutti i dati</button>
+    </div>
+    <p class="muted center">Netto · dati locali · funziona offline · <span id="app-version"></span></p>
+  </section>
+</main>
+
+<button id="fab" class="fab" data-add aria-label="Aggiungi incasso">+</button>
+
+<nav class="tabbar">
+  <button class="tab-btn active" data-tab="casa"><span class="tab-ico" data-i="home"></span><span>Casa</span></button>
+  <button class="tab-btn" data-tab="incassi"><span class="tab-ico" data-i="euro"></span><span>Incassi</span></button>
+  <button class="tab-btn" data-tab="scadenze"><span class="tab-ico" data-i="cal"></span><span>Scadenze</span></button>
+  <button class="tab-btn" data-tab="altro"><span class="tab-ico" data-i="cog"></span><span>Impostazioni</span></button>
+</nav>
+
+<!-- MODALE INCASSO -->
+<div id="modal" class="modal" hidden>
+  <div class="modal-backdrop" data-close></div>
+  <div class="modal-card">
+    <div class="modal-head">
+      <button class="modal-cancel" data-close>Annulla</button>
+      <h3 id="modal-title">Nuovo incasso</h3>
+      <button class="modal-save" id="modal-save">Salva</button>
+    </div>
+    <div class="amount-input"><span class="cur">€</span><input id="f-amount" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0,00" /></div>
+    <label class="field"><span>Cliente / descrizione</span><input id="f-desc" type="text" placeholder="Es. Fattura 12 — Rossi SRL" /></label>
+    <label class="field"><span>Data incasso</span><input id="f-date" type="date" /></label>
+    <button type="button" id="f-delete" class="btn btn-danger" hidden>Elimina incasso</button>
+  </div>
+</div>
+
+<!-- MODALE PROFILO -->
+<div id="profile-modal" class="modal" hidden>
+  <div class="modal-backdrop" data-close-pm></div>
+  <div class="modal-card">
+    <div class="modal-head">
+      <button class="modal-cancel" data-close-pm>Annulla</button>
+      <h3>Profilo fiscale</h3>
+      <button class="modal-save" id="pm-save">Salva</button>
+    </div>
+    <div class="field"><span>Attività (coefficiente di redditività)</span>
+      <select id="pm-coeff"></select>
+    </div>
+    <div class="field"><span>Aliquota imposta sostitutiva</span>
+      <div class="seg" id="pm-aliquota">
+        <button type="button" class="seg-btn" data-al="5">5% (nuova attività)</button>
+        <button type="button" class="seg-btn active" data-al="15">15% (ordinaria)</button>
+      </div>
+    </div>
+    <div class="field"><span>Contributi previdenziali</span>
+      <select id="pm-inps">
+        <option value="separata">Gestione Separata INPS (26,07%)</option>
+        <option value="artigiani">Artigiani / Commercianti (fisso + %)</option>
+        <option value="cassa">Cassa professionale / % personalizzata</option>
+        <option value="nessuna">Nessuno / li gestisco a parte</option>
+      </select>
+    </div>
+    <div id="pm-inps-extra"></div>
+    <p class="muted small">Le stime servono per sapere quanto accantonare. Per i conteggi ufficiali fai sempre riferimento al commercialista.</p>
+  </div>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+
+<!-- ONBOARDING -->
+<div id="onboarding" class="onb" hidden>
+  <div class="onb-inner">
+    <h1>Ciao 👋</h1>
+    <p class="lead">Netto ti dice, di ogni euro che incassi, <b>quanto è davvero tuo</b> e quanto mettere da parte per tasse e contributi. Due domande veloci per iniziare.</p>
+    <div class="field"><span>Che attività fai?</span><select id="onb-coeff"></select></div>
+    <div class="field"><span>Sei nei primi 5 anni di attività (aliquota 5%)?</span>
+      <div class="seg" id="onb-aliquota">
+        <button type="button" class="seg-btn active" data-al="5">Sì · 5%</button>
+        <button type="button" class="seg-btn" data-al="15">No · 15%</button>
+      </div>
+    </div>
+    <div class="field"><span>Contributi previdenziali</span>
+      <select id="onb-inps">
+        <option value="separata">Gestione Separata INPS (26,07%)</option>
+        <option value="artigiani">Artigiani / Commercianti</option>
+        <option value="cassa">Cassa professionale / % mia</option>
+        <option value="nessuna">Non lo so / li gestisco a parte</option>
+      </select>
+    </div>
+    <button id="onb-start" class="btn btn-primary" style="margin-top:10px">Inizia</button>
+    <p class="muted small center" style="margin-top:14px">Puoi cambiare tutto dopo dalle Impostazioni.</p>
+  </div>
+</div>
+
+<script src="app.js"></script>
