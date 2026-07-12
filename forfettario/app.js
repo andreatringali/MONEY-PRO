@@ -1,8 +1,8 @@
-/* Netto — gestione soldi per forfettari (dati locali).
+/* Forfy — gestione soldi per forfettari (dati locali).
    Ti dice quanto di ogni incasso è davvero tuo e quanto accantonare. */
 (function () {
   "use strict";
-  const APP_VERSION = "v0.2";
+  const APP_VERSION = "v0.3";
   const STORAGE_KEY = "netto_data_v1";
 
   // ---------- Icone ----------
@@ -482,7 +482,7 @@
         .sort((a, b) => (a.date < b.date ? -1 : 1));
       const s = upcoming[0]; if (!s) return;
       const gg = Math.ceil((parseIsoDate(s.date) - today) / 86400000);
-      new Notification("Netto", { body: `Tra ${gg} giorni: ${s.title} — tieni pronti ${money0(s.amount)}`, icon: "icons/icon-192.png", badge: "icons/icon-192.png" });
+      new Notification("Forfy", { body: `Tra ${gg} giorni: ${s.title} — tieni pronti ${money0(s.amount)}`, icon: "icons/icon-192.png", badge: "icons/icon-192.png" });
     } catch (e) {}
   }
   function parseIsoDate(iso) { return new Date(iso + "T00:00:00"); }
@@ -541,7 +541,7 @@
   }
 
   // ---------- Avvio a prova di guasto ----------
-  function safe(fn, label) { try { fn(); } catch (e) { console.error("Netto init:", label, e); } }
+  function safe(fn, label) { try { fn(); } catch (e) { console.error("Forfy init:", label, e); } }
   safe(applyTheme, "applyTheme");
   safe(() => { const av = $("#app-version"); if (av) av.textContent = APP_VERSION; }, "version");
   safe(render, "render");
