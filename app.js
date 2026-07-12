@@ -3,7 +3,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v18";
+  const APP_VERSION = "v19";
 
   // ---------- Icone (SVG inline) ----------
   const ICONS = {
@@ -1384,12 +1384,11 @@
       date = isoOf(d);
     }
     const rows = [];
-    // residuo totale rate: parte dal residuo corrente e cala di una rata per volta
-    let residuo = loanResiduo(l);
+    // "Residuo rate" = quanti soldi di rate restano da pagare DOPO ogni riga:
+    // (rate ancora da versare dopo questa) × rata mensile → 0 all'ultima rata.
     for (let i = 0; i < remaining; i++) {
-      const quota = Math.min(l.rata, residuo) || l.rata;
-      residuo = Math.max(0, residuo - l.rata);
-      rows.push({ n: (l.paid || 0) + i + 1, date, rata: l.rata, residuoAfter: residuo });
+      const residuoAfter = round2((remaining - 1 - i) * l.rata);
+      rows.push({ n: (l.paid || 0) + i + 1, date, rata: l.rata, residuoAfter });
       date = addInterval(date, "monthly");
     }
     return rows;
