@@ -49,6 +49,13 @@
       <div class="stat"><span class="l">Su ogni 100 € incassati</span><b class="v net" id="st-per100">€0</b></div>
     </div>
 
+    <div class="card" id="limite-card">
+      <div class="card-head"><h3>Limite forfettario</h3><span id="lim-pct" class="card-side"></span></div>
+      <div class="lim-bar"><i id="lim-fill"></i><span class="lim-mark"></span></div>
+      <div class="lim-foot"><span id="lim-inc"></span><span class="muted small">85.000 €</span></div>
+      <p id="lim-msg" class="lim-msg"></p>
+    </div>
+
     <div class="card" id="next-sca-card" hidden>
       <div class="card-head"><h3>Prossima scadenza</h3><button class="link-btn" data-goto="scadenze">Vedi tutte</button></div>
       <div id="next-sca"></div>
@@ -57,7 +64,10 @@
 
   <!-- INCASSI -->
   <section id="tab-incassi" class="tab-panel">
-    <header class="page-head"><h1>Incassi</h1><button class="link-btn" data-add>Aggiungi</button></header>
+    <header class="page-head"><h1>Incassi</h1>
+      <span><button id="btn-csv" class="link-btn">Importa CSV</button><button class="link-btn" data-add>Aggiungi</button></span>
+    </header>
+    <input id="csv-file" type="file" accept=".csv,text/csv,text/plain" hidden />
     <div class="seg" id="year-seg"></div>
     <div id="incassi-list"></div>
   </section>
@@ -85,6 +95,11 @@
         <button type="button" class="seg-btn active" data-theme="light">Chiaro</button>
         <button type="button" class="seg-btn" data-theme="dark">Scuro</button>
       </div>
+    </div>
+    <div class="settings-block">
+      <h3>Promemoria scadenze</h3>
+      <p class="muted">Ti avviso all'apertura quando una scadenza fiscale si avvicina, così metti da parte in tempo.</p>
+      <button id="btn-reminders" class="btn btn-secondary">Attiva promemoria</button>
     </div>
     <div class="settings-block">
       <h3>Backup dei dati</h3>
@@ -156,6 +171,25 @@
     </div>
     <div id="pm-inps-extra"></div>
     <p class="muted small">Le stime servono per sapere quanto accantonare. Per i conteggi ufficiali fai sempre riferimento al commercialista.</p>
+  </div>
+</div>
+
+<!-- MODALE IMPORT CSV -->
+<div id="csv-modal" class="modal" hidden>
+  <div class="modal-backdrop" data-close-csv></div>
+  <div class="modal-card">
+    <div class="modal-head">
+      <button class="modal-cancel" data-close-csv>Annulla</button>
+      <h3>Importa incassi</h3>
+      <button class="modal-save" id="csv-confirm">Importa</button>
+    </div>
+    <p class="muted small" id="csv-note" style="margin-bottom:12px"></p>
+    <label class="field"><span>Colonna data</span><select id="csv-col-date"></select></label>
+    <label class="field"><span>Colonna descrizione</span><select id="csv-col-desc"></select></label>
+    <label class="field"><span>Colonna importo</span><select id="csv-col-amount"></select></label>
+    <label class="switch-row"><span>Importa solo gli accrediti (positivi)</span><input type="checkbox" id="csv-only-pos" class="switch" checked></label>
+    <div class="settings-block" style="box-shadow:none;background:var(--cream-2);margin:0"><div id="csv-summary" class="muted"></div></div>
+    <div id="csv-preview" style="max-height:34vh;overflow:auto;margin-top:12px"></div>
   </div>
 </div>
 

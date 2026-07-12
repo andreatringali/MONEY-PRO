@@ -98,6 +98,19 @@ main { max-width: 720px; margin: 0 auto; padding: 0 16px; }
 .stat .v { display: block; font-family: var(--serif); font-size: 22px; font-weight: 600; margin-top: 4px; }
 .stat .v.tax { color: var(--tax); } .stat .v.inps { color: var(--gold); } .stat .v.net { color: var(--primary); }
 
+/* limite forfettario */
+.lim-bar { position: relative; height: 16px; border-radius: 9px; background: var(--cream-2); overflow: hidden; }
+.lim-bar > i { display: block; height: 100%; width: 0; border-radius: 9px; background: var(--primary); transition: width .5s ease; }
+.lim-foot { display: flex; justify-content: space-between; margin-top: 8px; font-size: 12.5px; font-weight: 700; }
+#lim-inc { font-variant-numeric: tabular-nums; }
+.lim-msg { font-size: 13px; color: var(--muted); margin-top: 10px; line-height: 1.45; }
+#limite-card[data-stato="warn"] .lim-bar > i { background: var(--gold); }
+#limite-card[data-stato="over"] .lim-bar > i,
+#limite-card[data-stato="hard"] .lim-bar > i { background: var(--tax); }
+#limite-card[data-stato="warn"] .lim-msg { color: var(--gold); font-weight: 700; }
+#limite-card[data-stato="over"] .lim-msg,
+#limite-card[data-stato="hard"] .lim-msg { color: var(--tax); font-weight: 700; }
+
 /* scadenze */
 .sca { display: flex; gap: 14px; align-items: flex-start; padding: 14px 0; border-bottom: 1px solid var(--line); }
 .sca:last-child { border-bottom: none; }

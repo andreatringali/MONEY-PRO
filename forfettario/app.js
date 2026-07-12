@@ -2,7 +2,7 @@
    Ti dice quanto di ogni incasso è davvero tuo e quanto accantonare. */
 (function () {
   "use strict";
-  const APP_VERSION = "v0.1";
+  const APP_VERSION = "v0.2";
   const STORAGE_KEY = "netto_data_v1";
 
   // ---------- Icone ----------
@@ -108,6 +108,26 @@
     return inps + imposta;
   }
 
+  // Acconti imposta sostitutiva (stesse regole IRPEF, metodo storico 100%)
+  function accontoImposta(imposta) {
+    if (imposta <= 51.65) return { primo: 0, secondo: 0 };
+    if (imposta <= 257.52) return { primo: 0, secondo: imposta }; // acconto unico a novembre
+    return { primo: imposta * 0.4, secondo: imposta * 0.6 };
+  }
+
+  // Limite del regime forfettario
+  const LIMITE = 85000;      // oltre: si esce dal regime dall'anno dopo
+  const LIMITE_HARD = 100000; // oltre: si esce subito, con IVA
+  function limiteInfo(y) {
+    const inc = incassatoYear(y);
+    const pct = Math.min(100, inc / LIMITE * 100);
+    let stato = "ok", msg = `Ti mancano ${money0(Math.max(0, LIMITE - inc))} al limite`;
+    if (inc >= LIMITE_HARD) { stato = "hard"; msg = "Oltre 100.000 €: esci subito dal forfettario (con IVA)"; }
+    else if (inc >= LIMITE) { stato = "over"; msg = "Superato: dall'anno prossimo esci dal forfettario"; }
+    else if (inc >= LIMITE * 0.85) { stato = "warn"; msg = `Attenzione: ti mancano solo ${money0(LIMITE - inc)} al limite`; }
+    return { inc, pct, stato, msg };
+  }
+
   // ---------- Render ----------
   function render() {
     renderNavIcons();
@@ -146,6 +166,8 @@
     $("#st-accant").textContent = money0(t.accant);
     $("#st-per100").textContent = money0(100 - per100());
 
+    renderLimite(y);
+
     // prossima scadenza
     const sca = scadenzeFor(y);
     const next = sca[0];
@@ -154,6 +176,16 @@
       card.hidden = false;
       $("#next-sca").innerHTML = scaRow(next);
     } else card.hidden = true;
+  }
+
+  function renderLimite(y) {
+    const l = limiteInfo(y);
+    const card = $("#limite-card");
+    card.dataset.stato = l.stato;
+    $("#lim-pct").textContent = Math.round(l.pct) + "%";
+    $("#lim-fill").style.width = l.pct + "%";
+    $("#lim-inc").textContent = money0(l.inc);
+    $("#lim-msg").textContent = l.msg;
   }
 
   function renderIncassi() {
@@ -182,28 +214,32 @@
   function fmtDate(iso) { return new Date(iso + "T00:00:00").toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" }); }
 
   // ---------- Scadenze ----------
+  // Genera le scadenze F24 dell'anno y (che si versano nell'anno y+1) con acconti corretti.
   function scadenzeFor(y) {
     const t = computeTax(y);
+    const acc = accontoImposta(t.imposta);
     const list = [];
-    // Saldo dell'anno y + acconti: si versano l'anno successivo
+    // 30 giugno y+1: saldo dell'anno y (imposta + contributi) + 1° acconto per y+1
     list.push({
-      date: `${y + 1}-06-30`, title: `Saldo ${y}`,
-      desc: `Imposta sostitutiva + contributi sull'incassato ${y}. Stima da confermare con la dichiarazione.`,
-      amount: t.accant, pill: "stima",
+      date: `${y + 1}-06-30`,
+      title: acc.primo > 0 ? `Saldo ${y} + 1° acconto ${y + 1}` : `Saldo ${y}`,
+      desc: `Imposta sostitutiva e contributi sull'incassato ${y}${acc.primo > 0 ? ", più il 1° acconto (40%) per l'anno dopo" : ""}.`,
+      amount: t.accant + acc.primo, pill: "F24",
     });
-    list.push({
-      date: `${y + 1}-11-30`, title: `2° acconto ${y + 1}`,
-      desc: `Acconto per l'anno successivo: dipende da quanto incasserai. Tieni da parte con lo stesso ritmo di quest'anno.`,
-      amount: null, pill: "prossimo anno",
+    // 30 novembre y+1: 2° acconto (o acconto unico)
+    if (acc.secondo > 0) list.push({
+      date: `${y + 1}-11-30`,
+      title: acc.primo > 0 ? `2° acconto ${y + 1}` : `Acconto ${y + 1}`,
+      desc: `Acconto sull'imposta, calcolato sull'anno in corso (metodo storico).`,
+      amount: acc.secondo, pill: "F24",
     });
-    // ordina per data, mostra prima le future
     return list.sort((a, b) => (a.date < b.date ? -1 : 1));
   }
   function scaRow(s) {
     const d = new Date(s.date + "T00:00:00");
     return `<div class="sca">
       <div class="sca-date"><div class="sca-day">${d.getDate()}</div><div class="sca-mon">${d.toLocaleDateString("it-IT", { month: "short" })} ${d.getFullYear()}</div></div>
-      <div class="sca-main"><div class="sca-title">${esc(s.title)} ${s.pill ? `<span class="pill ${s.amount == null ? "" : ""}">${s.pill}</span>` : ""}</div>
+      <div class="sca-main"><div class="sca-title">${esc(s.title)} ${s.pill ? `<span class="pill">${s.pill}</span>` : ""}</div>
         <div class="sca-desc">${esc(s.desc)}</div></div>
       ${s.amount != null ? `<span class="sca-amt">${money0(s.amount)}</span>` : ""}
     </div>`;
@@ -212,10 +248,11 @@
     const y = new Date().getFullYear();
     const t = computeTax(y);
     const list = scadenzeFor(y);
+    const totCassa = list.reduce((a, s) => a + (s.amount || 0), 0);
     const box = $("#scadenze-list");
-    box.innerHTML = `<div class="card"><div class="card-head"><h3>Da mettere da parte per il ${y}</h3></div>
-        <div class="hero-value" style="font-size:30px;color:var(--tax)">${money0(t.accant)}</div>
-        <p class="muted small" style="margin-top:6px">≈ ${money0(t.imposta)} di imposta + ${money0(t.inps)} di contributi</p></div>
+    box.innerHTML = `<div class="card"><div class="card-head"><h3>In cassa per il ${y + 1}</h3><span class="pill">stima</span></div>
+        <div class="hero-value" style="font-size:30px;color:var(--tax)">${money0(totCassa)}</div>
+        <p class="muted small" style="margin-top:6px">Saldo ${y} (${money0(t.accant)}) + acconti ${y + 1}. Il saldo esatto tiene conto degli acconti già versati: falla confermare dal commercialista.</p></div>
       <div class="card"><div class="list-sca">` + list.map(scaRow).join("") + `</div></div>`;
   }
 
@@ -334,6 +371,122 @@
     r.readAsText(file);
   }
 
+  // ---------- Import estratto conto / fatture (CSV) ----------
+  const csvState = { header: [], rows: [] };
+  function parseCSV(text, delim) {
+    const rows = []; let row = [], field = "", inQ = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (inQ) { if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQ = false; } else field += c; }
+      else if (c === '"') inQ = true;
+      else if (c === delim) { row.push(field); field = ""; }
+      else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+      else if (c !== "\r") field += c;
+    }
+    if (field.length || row.length) { row.push(field); rows.push(row); }
+    return rows;
+  }
+  function detectDelim(line) {
+    const c = { ";": 0, ",": 0, "\t": 0 }; let q = false;
+    for (const ch of line) { if (ch === '"') q = !q; else if (!q && c[ch] !== undefined) c[ch]++; }
+    return Object.keys(c).sort((a, b) => c[b] - c[a])[0];
+  }
+  function csvDate(s) {
+    s = String(s || "").trim();
+    let m = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/); if (m) return `${m[1]}-${p2(+m[2])}-${p2(+m[3])}`;
+    m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/); if (m) { let y = +m[3]; if (y < 100) y += 2000; return `${y}-${p2(+m[2])}-${p2(+m[1])}`; }
+    return null;
+  }
+  function csvAmount(s) {
+    s = String(s == null ? "" : s).replace(/[^\d.,\-]/g, "").trim(); if (!s) return null;
+    const hc = s.includes(","), hd = s.includes(".");
+    if (hc && hd) { if (s.lastIndexOf(",") > s.lastIndexOf(".")) s = s.replace(/\./g, "").replace(",", "."); else s = s.replace(/,/g, ""); }
+    else if (hc) s = s.replace(",", ".");
+    const n = parseFloat(s); return isNaN(n) ? null : n;
+  }
+  function guessCol(h, re) { for (let i = 0; i < h.length; i++) if (re.test(h[i])) return i; return -1; }
+  function startCsv(file) {
+    const r = new FileReader();
+    r.onload = () => {
+      const text = String(r.result || "");
+      const delim = detectDelim(text.split("\n")[0] || "");
+      const all = parseCSV(text, delim).filter((x) => x.some((c) => String(c).trim() !== ""));
+      if (all.length < 2) { toast("CSV vuoto o non riconosciuto"); return; }
+      csvState.header = all[0].map((h) => h.trim()); csvState.rows = all.slice(1);
+      openCsv();
+    };
+    r.readAsText(file);
+  }
+  function fillCsvSel(sel, guess) { sel.innerHTML = csvState.header.map((h, i) => `<option value="${i}">${esc(h || "Colonna " + (i + 1))}</option>`).join(""); sel.value = String(Math.max(0, guess)); }
+  function openCsv() {
+    const H = csvState.header;
+    fillCsvSel($("#csv-col-date"), guessCol(H, /data|date|valuta/i));
+    fillCsvSel($("#csv-col-desc"), guessCol(H, /descr|causal|operazion|dettagl|cliente|beneficiar|narrativ/i));
+    fillCsvSel($("#csv-col-amount"), guessCol(H, /import|amount|accredit|entrat|avere|valore/i));
+    $("#csv-note").textContent = `${csvState.rows.length} righe trovate. Controlla le colonne e importa.`;
+    $("#csv-modal").hidden = false;
+    renderCsvPreview();
+  }
+  function closeCsv() { $("#csv-modal").hidden = true; }
+  function csvParsed() {
+    const di = +$("#csv-col-date").value, dsi = +$("#csv-col-desc").value, ai = +$("#csv-col-amount").value;
+    const onlyPos = $("#csv-only-pos").checked;
+    const out = [];
+    for (const r of csvState.rows) {
+      const date = csvDate(r[di]); if (!date) continue;
+      let amt = csvAmount(r[ai]); if (amt == null) continue;
+      if (onlyPos && amt <= 0) continue;
+      out.push({ date, description: String(r[dsi] || "").trim(), amount: Math.abs(amt) });
+    }
+    return out;
+  }
+  function isDup(r) {
+    return data.incassi.some((i) => i.date === r.date && Math.abs((+i.amount || 0) - r.amount) < 0.005 && String(i.description || "").toLowerCase() === r.description.toLowerCase());
+  }
+  function renderCsvPreview() {
+    const rows = csvParsed(); let dup = 0;
+    const fresh = rows.filter((r) => { const d = isDup(r); if (d) dup++; return !d; });
+    $("#csv-summary").innerHTML = rows.length ? `<b style="color:var(--primary)">${fresh.length}</b> incassi da importare${dup ? ` · ${dup} già presenti` : ""}` : "Nessun incasso riconosciuto: controlla le colonne.";
+    const show = rows.slice(0, 8);
+    $("#csv-preview").innerHTML = show.length ? `<div class="list">` + show.map((r) => `<div class="row" style="cursor:default;${isDup(r) ? "opacity:.4" : ""}">
+      <div class="row-main"><div class="row-title">${esc(r.description || "Incasso")}</div><div class="row-sub">${cap(fmtDate(r.date))}</div></div>
+      <span class="amount">${money(r.amount)}</span></div>`).join("") + `</div>${rows.length > 8 ? `<p class="muted small center" style="margin-top:8px">…e altri ${rows.length - 8}</p>` : ""}` : "";
+  }
+  function confirmCsv() {
+    const rows = csvParsed().filter((r) => !isDup(r));
+    if (!rows.length) { toast("Nessun nuovo incasso"); return; }
+    rows.forEach((r) => data.incassi.push(Object.assign({ id: uid() }, r)));
+    save(); render(); closeCsv(); toast(rows.length + (rows.length === 1 ? " incasso importato" : " incassi importati"));
+  }
+
+  // ---------- Promemoria ----------
+  function enableReminders() {
+    if (!("Notification" in window)) { toast("Notifiche non supportate qui"); return; }
+    Notification.requestPermission().then((perm) => {
+      if (perm === "granted") { settings().reminders = true; save(); syncReminderButton(); toast("Promemoria attivati"); notifyScadenze(); }
+      else toast("Permesso negato");
+    }).catch(() => toast("Notifiche non disponibili"));
+  }
+  function syncReminderButton() {
+    const on = settings().reminders && ("Notification" in window) && Notification.permission === "granted";
+    const b = $("#btn-reminders"); if (b) b.textContent = on ? "Promemoria attivi ✓" : "Attiva promemoria";
+  }
+  function notifyScadenze() {
+    try {
+      if (!settings().reminders || !("Notification" in window) || Notification.permission !== "granted") return;
+      const y = new Date().getFullYear();
+      const today = parseIsoDate(todayIso());
+      const upcoming = scadenzeFor(y).concat(scadenzeFor(y - 1))
+        .filter((s) => s.amount && parseIsoDate(s.date) >= today)
+        .filter((s) => (parseIsoDate(s.date) - today) / 86400000 <= 20)
+        .sort((a, b) => (a.date < b.date ? -1 : 1));
+      const s = upcoming[0]; if (!s) return;
+      const gg = Math.ceil((parseIsoDate(s.date) - today) / 86400000);
+      new Notification("Netto", { body: `Tra ${gg} giorni: ${s.title} — tieni pronti ${money0(s.amount)}`, icon: "icons/icon-192.png", badge: "icons/icon-192.png" });
+    } catch (e) {}
+  }
+  function parseIsoDate(iso) { return new Date(iso + "T00:00:00"); }
+
   // ---------- Navigazione ----------
   function switchTab(tab) {
     $$(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
@@ -368,6 +521,14 @@
     $("#btn-import").addEventListener("click", () => $("#import-file").click());
     $("#import-file").addEventListener("change", (e) => { if (e.target.files[0]) importData(e.target.files[0]); e.target.value = ""; });
     $("#btn-reset").addEventListener("click", () => { if (confirm("Cancellare TUTTI i dati? Operazione irreversibile.")) { localStorage.removeItem(STORAGE_KEY); location.reload(); } });
+    // import CSV
+    $("#btn-csv").addEventListener("click", () => $("#csv-file").click());
+    $("#csv-file").addEventListener("change", (e) => { if (e.target.files[0]) startCsv(e.target.files[0]); e.target.value = ""; });
+    $("#csv-confirm").addEventListener("click", confirmCsv);
+    ["#csv-col-date", "#csv-col-desc", "#csv-col-amount", "#csv-only-pos"].forEach((id) => $(id).addEventListener("change", renderCsvPreview));
+    $("#csv-modal").addEventListener("click", (e) => { if (e.target.hasAttribute("data-close-csv")) closeCsv(); });
+    // promemoria
+    $("#btn-reminders").addEventListener("click", enableReminders);
   }
 
   // ---------- Service worker ----------
@@ -385,5 +546,7 @@
   safe(() => { const av = $("#app-version"); if (av) av.textContent = APP_VERSION; }, "version");
   safe(render, "render");
   safe(bind, "bind");
+  safe(syncReminderButton, "syncReminderButton");
+  safe(notifyScadenze, "notifyScadenze");
   safe(() => { if (!data.onboarded) showOnboarding(); }, "onboarding");
 })();
