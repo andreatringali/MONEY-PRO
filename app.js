@@ -3,6 +3,8 @@
 (function () {
   "use strict";
 
+  const APP_VERSION = "v7";
+
   // ---------- Icone (SVG inline) ----------
   const ICONS = {
     today: '<rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9h18M8 3v3M16 3v3"/>',
@@ -2086,9 +2088,20 @@
     } catch (e) {}
   }
 
-  // ---------- Service worker ----------
+  // ---------- Service worker + aggiornamento automatico ----------
   if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+    let refreshing = false;
+    // quando il nuovo service worker prende il controllo, ricarica una volta sola
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (refreshing) return; refreshing = true; location.reload();
+    });
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").then((reg) => {
+        reg.update();
+        // controlla se c'è una versione nuova ogni volta che riapri/torni sull'app
+        document.addEventListener("visibilitychange", () => { if (!document.hidden) reg.update(); });
+      }).catch(() => {});
+    });
   }
 
   // La Dashboard è solo consuntiva: nessun inserimento, niente FAB
@@ -2096,6 +2109,7 @@
 
   bind();
   applyTheme();
+  const av = $("#app-version"); if (av) av.textContent = APP_VERSION;
   ensureLoanSchedules();
   autoSettle();
   render();
