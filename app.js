@@ -3,7 +3,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v25";
+  const APP_VERSION = "v26";
 
   // ---------- Icone (SVG inline) ----------
   const ICONS = {
@@ -1187,7 +1187,10 @@
       return out;
     }
     const hexBytes = (h) => { h = h.replace(/\s+/g, ""); if (h.length % 2) h += "0"; const b = []; for (let i = 0; i < h.length; i += 2) b.push(parseInt(h.substr(i, 2), 16)); return b; };
-    function bytesToText(bytes, uni) { let s = ""; for (let i = 0; i + 1 < bytes.length; i += 2) { const code = (bytes[i] << 8) | bytes[i + 1]; s += uni.has(code) ? uni.get(code) : ""; } return s; }
+    function bytesToText(bytes, uni) {
+      if (uni.size === 0) { let s = ""; for (const b of bytes) s += String.fromCharCode(b); return s; } // font semplice 1-byte
+      let s = ""; for (let i = 0; i + 1 < bytes.length; i += 2) { const code = (bytes[i] << 8) | bytes[i + 1]; s += uni.has(code) ? uni.get(code) : ""; } return s;
+    }
     function tokenize(s) {
       const toks = []; let i = 0; const n = s.length;
       const isWS = (c) => c === " " || c === "\n" || c === "\r" || c === "\t" || c === "\f" || c === "\0";
@@ -1240,8 +1243,9 @@
       for (const start of starts) {
         const end = s.indexOf("endstream", start); if (end < 0) continue;
         let raw = s.slice(start, end); if (raw.endsWith("\n")) raw = raw.slice(0, -1); if (raw.endsWith("\r")) raw = raw.slice(0, -1);
-        const inf = await inflate(Uint8Array.from(raw, (c) => c.charCodeAt(0) & 0xff)); if (!inf) continue;
-        const txt = bytesToLatin1(inf);
+        const inf = await inflate(Uint8Array.from(raw, (c) => c.charCodeAt(0) & 0xff));
+        let txt = inf ? bytesToLatin1(inf) : raw; // stream compresso o (fallback) non compresso
+        if (!/beginbfchar|beginbfrange|\bBT\b|\bTj\b|\bTJ\b/.test(txt)) continue;
         if (/beginbfchar|beginbfrange/.test(txt)) parseToUnicode(txt, uni);
         if (/\bBT\b|\bTj\b|\bTJ\b/.test(txt)) contents.push(txt);
       }
@@ -1285,7 +1289,32 @@
       }
       return { opening, txs };
     }
-    return { extract, parseRevolut, supported: typeof DecompressionStream !== "undefined" };
+    // parser generico: qualsiasi PDF "Data · Descrizione · Importo" (una colonna, importi con virgola decimale)
+    const MONEY = /-?\d{1,3}(?:\.\d{3})*,\d{2}/g;
+    function parseGeneric(pages) {
+      const txs = [];
+      for (const p of pages) for (const line of p) {
+        const joined = line.map((c) => c.s).join(" ").replace(/\s+/g, " ").trim();
+        const dm = joined.match(dateStart); if (!dm) continue;
+        const day = +dm[1], mon = MESI[dm[2].toLowerCase()], year = +dm[3];
+        const monies = joined.match(MONEY); if (!monies || !monies.length) continue;
+        const last = monies[monies.length - 1];
+        const val = itAmount(last); if (val == null || val === 0) continue;
+        const amount = /^-/.test(last) ? -val : val;
+        const afterDate = joined.replace(dateStart, "").trim();
+        const desc = afterDate.replace(MONEY, "").replace(/\s+/g, " ").replace(/[-–]\s*$/, "").trim();
+        const iso = year + "-" + String(mon).padStart(2, "0") + "-" + String(day).padStart(2, "0");
+        txs.push({ date: iso, description: desc || "Movimento", amount });
+      }
+      return { opening: null, txs };
+    }
+    // riconosce il formato: Revolut (colonne uscita/entrata/saldo) o generico
+    function parseStatement(pages) {
+      const allText = pages.map((p) => p.map((l) => l.map((c) => c.s).join(" ")).join("\n")).join("\n");
+      if (/Denaro in uscita|Denaro in entrata|Revolut/i.test(allText)) return parseRevolut(pages);
+      return parseGeneric(pages);
+    }
+    return { extract, parseRevolut, parseGeneric, parseStatement, supported: typeof DecompressionStream !== "undefined" };
   })();
 
   // ---------- Import estratto conto (CSV) ----------
@@ -1393,7 +1422,7 @@
     try {
       const buf = new Uint8Array(await file.arrayBuffer());
       const pages = await PdfImport.extract(buf);
-      const { txs } = PdfImport.parseRevolut(pages);
+      const { txs } = PdfImport.parseStatement(pages);
       if (!txs.length) { toast("Nessun movimento riconosciuto nel PDF"); return; }
       csvState.pdfRows = txs.map((t) => ({ date: t.date, description: t.description || "Movimento", amount: t.amount }));
       openCsvModal();

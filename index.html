@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Mulish:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=25" />
+  <link rel="stylesheet" href="styles.css?v=26" />
   <title>Tasca</title>
 </head>
 <body>
@@ -108,21 +108,21 @@
         </div>
         <div class="cal-grid" id="cal-grid"></div>
       </div>
+      <div class="seg" id="mov-view">
+        <button type="button" class="seg-btn active" data-view="daily">Giornaliero</button>
+        <button type="button" class="seg-btn" data-view="forecast">Previsione</button>
+      </div>
+      <div class="filters">
+        <select id="filter-month" class="select-inline" aria-label="Filtra per mese"></select>
+        <select id="filter-account" class="select-inline" aria-label="Filtra per conto"></select>
+      </div>
+      <div id="movements-list"></div>
       <div id="fav-row" class="fav-row"></div>
       <input id="search-input" class="search-input" type="search" placeholder="🔍  Cerca movimenti…" />
       <div class="card" id="scadenze-card">
         <div class="card-head"><h3>In scadenza</h3><span id="prev-total" class="card-side"></span></div>
         <div id="planned-list" class="list inset"></div>
       </div>
-      <div class="filters">
-        <select id="filter-month" class="select-inline" aria-label="Filtra per mese"></select>
-        <select id="filter-account" class="select-inline" aria-label="Filtra per conto"></select>
-      </div>
-      <div class="seg" id="mov-view">
-        <button type="button" class="seg-btn active" data-view="daily">Giornaliero</button>
-        <button type="button" class="seg-btn" data-view="forecast">Previsione</button>
-      </div>
-      <div id="movements-list"></div>
     </section>
 
     <!-- RESOCONTI -->
@@ -624,6 +624,6 @@
 
   <div id="toast" class="toast" hidden></div>
 
-  <script src="app.js?v=25"></script>
+  <script src="app.js?v=26"></script>
 </body>
 </html>
