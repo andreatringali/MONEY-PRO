@@ -104,7 +104,7 @@ main { max-width: 720px; margin: 0 auto; padding: 0 16px; }
 /* Totale (Conti) */
 .net-strip {
   display: flex; align-items: baseline; justify-content: space-between;
-  border-left: 3px solid var(--terra); padding: 12px 16px; margin: 6px 0 18px;
+  border-left: 3px solid var(--terra); padding: 14px 16px; margin: 2px 0 0;
   background: var(--card); border-radius: 0 14px 14px 0; box-shadow: var(--shadow-card);
 }
 .net-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
