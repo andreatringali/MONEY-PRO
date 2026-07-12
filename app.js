@@ -3,7 +3,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v26";
+  const APP_VERSION = "v27";
 
   // ---------- Icone (SVG inline) ----------
   const ICONS = {
@@ -909,7 +909,7 @@
     $$("#seg-kind .seg-btn").forEach((b) => b.classList.toggle("active", b.dataset.kind === form.kind));
     const isXfer = form.kind === "transfer";
     $("#pick-category").style.display = isXfer ? "none" : "";
-    $("#pick-account2").hidden = !isXfer;
+    $("#pick-account2").style.display = isXfer ? "" : "none";
     $("#recur-fields").style.display = isXfer ? "none" : "";
     $("#acc-label").textContent = isXfer ? "Da conto" : "Conto";
   }
