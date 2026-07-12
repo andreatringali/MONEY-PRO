@@ -208,6 +208,11 @@ main { max-width: 720px; margin: 0 auto; padding: 0 16px; }
 /* Conti — grafico a barre orizzontali */
 .acc-bars { display: flex; flex-direction: column; gap: 14px; }
 .acc-bar-row { cursor: pointer; }
+.acc-total { display: flex; justify-content: space-between; align-items: baseline; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.acc-total span { font-size: 12.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; }
+.acc-total b { font-size: 16px; font-weight: 700; }
+.acc-total b.pos { color: var(--income); }
+.acc-total b.neg { color: var(--expense); }
 .acc-bar-top { display: flex; align-items: center; gap: 10px; margin-bottom: 7px; }
 .acc-bar-top .abr-ico { width: 22px; height: 22px; color: var(--terra); flex-shrink: 0; }
 .acc-bar-top .abr-ico svg { width: 100%; height: 100%; }

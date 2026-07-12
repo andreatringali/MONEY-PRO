@@ -3,7 +3,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v9";
+  const APP_VERSION = "v10";
 
   // ---------- Icone (SVG inline) ----------
   const ICONS = {
@@ -306,7 +306,11 @@
     }
 
     // Conti — grafico a barre orizzontali (proporzioni in valuta base, importi in valuta del conto)
-    $("#dash-networth").textContent = "Netto " + money(netWorth());
+    const nw = netWorth();
+    const nwEl = $("#dash-networth");
+    nwEl.textContent = money(nw);
+    nwEl.classList.toggle("neg", nw < 0);
+    nwEl.classList.toggle("pos", nw >= 0);
     const daccBox = $("#dash-accounts");
     const balances = data.accounts.map((a) => ({ a, b: accountBalance(a.id), bb: accountBalanceBase(a.id) }));
     const maxAbs = Math.max(1, ...balances.map((x) => Math.abs(x.bb)));
