@@ -3,7 +3,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v11";
+  const APP_VERSION = "v12";
 
   // ---------- Icone (SVG inline) ----------
   const ICONS = {
@@ -378,25 +378,23 @@
   }
 
   function renderBilancio() {
-    const nw = netWorth();
-    const nwEl = $("#net-worth");
-    nwEl.textContent = money(nw);
-    nwEl.classList.toggle("neg", nw < 0);
-    nwEl.classList.toggle("pos", nw >= 0);
     const groups = [
       { label: "Conti di pagamento", types: ["bank", "cash", "card", "payment"] },
       { label: "Investimenti", types: ["invest"] },
       { label: "Passività", types: ["liability"] },
     ];
     const box = $("#accounts-list");
-    // tutti i conti in un unico box, con i gruppi come sezioni interne
+    // ogni gruppo è un box: titolo + Aggiungi in intestazione, totale in fondo
     let html = "";
+    let firstBox = true;
     for (const g of groups) {
       const accs = data.accounts.filter((a) => g.types.includes(a.type || "payment"));
       if (!accs.length) continue;
       const sum = accs.reduce((s, a) => s + accountBalanceBase(a.id), 0);
-      html += `<div class="acc-group">
-        <div class="acc-group-head"><span>${g.label}</span><span>${money(sum)}</span></div>
+      const addBtn = firstBox ? `<button class="link-btn" data-add-account>Aggiungi</button>` : "";
+      firstBox = false;
+      html += `<div class="card">
+        <div class="card-head"><h3>${g.label}</h3>${addBtn}</div>
         <div class="list inset">` +
         accs.map((a) => {
           const b = accountBalance(a.id);
@@ -410,7 +408,9 @@
             <span class="acc-bal ${b < 0 ? "neg" : "pos"}">${money(b, cur)}</span>
           </div>`;
         }).join("") +
-        `</div></div>`;
+        `</div>
+        <div class="acc-total"><span>Totale</span><b class="${sum < 0 ? "neg" : "pos"}">${money(sum)}</b></div>
+      </div>`;
     }
     box.innerHTML = html;
   }
@@ -1930,6 +1930,7 @@
       const edit = e.target.closest("[data-edit]");
       if (edit) { const t = data.transactions.find((x) => x.id === edit.dataset.edit); if (t) openModal(t); return; }
 
+      if (e.target.closest("[data-add-account]")) { openAccountEditor(null); return; }
       const accEdit = e.target.closest("[data-acc-edit]");
       if (accEdit) { openAccountEditor(accById(accEdit.dataset.accEdit)); return; }
 
@@ -2015,7 +2016,6 @@
       }
     });
 
-    $("#add-account").addEventListener("click", () => openAccountEditor(null));
     $("#am-save").addEventListener("click", saveAccount);
     $("#am-delete").addEventListener("click", deleteAccount);
     $("#am-currency").addEventListener("change", (e) => { accForm.currency = e.target.value; syncAccCurrency(); });
