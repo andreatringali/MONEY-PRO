@@ -428,6 +428,13 @@ main { max-width: 720px; margin: 0 auto; padding: 0 16px; }
 .plan-sum-row { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; font-size: 14px; }
 .plan-sum-row span { color: var(--muted); }
 .plan-sum-row.plan-int b { color: var(--expense); }
+/* Estinzione anticipata */
+.plan-estinzione { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
+.pe-title { font-family: var(--serif); font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+.plan-sum-row.pe-tot b { color: var(--terra); font-size: 15px; }
+.plan-sum-row.pe-save b { color: var(--income); }
+.pe-note { font-size: 11.5px; color: var(--muted); line-height: 1.5; margin-top: 8px; }
+.pe-note b { color: var(--ink); font-weight: 700; }
 .plan-list { max-height: 55vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .plan-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .plan-table th { position: sticky; top: 0; background: var(--card); text-align: left; padding: 8px 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); border-bottom: 1.5px solid var(--line); }

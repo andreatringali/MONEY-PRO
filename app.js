@@ -3,7 +3,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v19";
+  const APP_VERSION = "v20";
 
   // ---------- Icone (SVG inline) ----------
   const ICONS = {
@@ -633,6 +633,10 @@
   function fmtDayLong(iso) {
     const d = parseIso(iso);
     return d.toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "long" });
+  }
+  function fmtDayLongYear(iso) {
+    const d = parseIso(iso);
+    return d.toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "long", year: "numeric" });
   }
 
   // Prima nota: saldo progressivo dopo ogni movimento
@@ -1394,6 +1398,30 @@
     return rows;
   }
 
+  // Stima di quanto costa estinguere in anticipo il finanziamento oggi.
+  // Serve il residuo capitale (dato dalla banca) per un calcolo sensato.
+  function estinzioneBlock(l, remaining, interessi) {
+    if (!(l.residuo > 0)) {
+      return `<div class="plan-estinzione">
+        <div class="pe-title">Estinzione anticipata</div>
+        <p class="pe-note">Inserisci il <b>residuo capitale</b> del finanziamento (lo trovi nell'estratto della banca) per stimare quanto costerebbe chiuderlo oggi.</p>
+      </div>`;
+    }
+    // Credito al consumo (prestiti): penale max 1% del capitale, 0,5% se manca meno di 1 anno.
+    const pct = remaining > 12 ? 1 : 0.5;
+    const penale = round2(l.residuo * pct / 100);
+    const totale = round2(l.residuo + penale);
+    const risparmio = interessi !== null ? round2(interessi - penale) : null;
+    return `<div class="plan-estinzione">
+      <div class="pe-title">Se estingui in anticipo oggi</div>
+      <div class="plan-sum-row"><span>Capitale residuo da restituire</span><b>${money(l.residuo)}</b></div>
+      <div class="plan-sum-row"><span>Penale stimata (${String(pct).replace(".", ",")}%)</span><b>${money(penale)}</b></div>
+      <div class="plan-sum-row pe-tot"><span>Totale per chiudere</span><b>${money(totale)}</b></div>
+      ${risparmio !== null ? `<div class="plan-sum-row pe-save"><span>Risparmi in interessi futuri</span><b>${money(risparmio)}</b></div>` : ""}
+      <p class="pe-note">Stima per <b>prestiti / credito al consumo</b>. Per i <b>mutui prima casa</b> stipulati dal 2007 la penale è <b>zero</b>: chiuderesti con ${money(l.residuo)}. Il conteggio esatto lo fornisce sempre la banca.</p>
+    </div>`;
+  }
+
   function openLoanPlan(loanId) {
     const l = (data.loans || []).find((x) => x.id === loanId);
     if (!l) return;
@@ -1413,7 +1441,8 @@
       <div class="plan-sum-row"><span>Totale ancora da pagare</span><b>${money(totale)}</b></div>
       ${capNote}
       ${intNote}
-      ${fine ? `<div class="plan-sum-row"><span>Ultima rata</span><b>${cap(fmtDayLong(fine))}</b></div>` : ""}`;
+      ${fine ? `<div class="plan-sum-row"><span>Ultima rata</span><b>${cap(fmtDayLongYear(fine))}</b></div>` : ""}
+      ${estinzioneBlock(l, rows.length, interessi)}`;
     $("#plan-list").innerHTML = rows.length
       ? `<table class="plan-table">
           <thead><tr><th>#</th><th>Scadenza</th><th>Rata</th><th>Residuo rate</th></tr></thead>
@@ -1450,6 +1479,7 @@
         <tr><td><b>Totale ancora da pagare</b></td><td><b>${money(totale)}</b></td></tr>
         ${l.residuo > 0 ? `<tr><td>Residuo capitale (banca)</td><td>${money(l.residuo)}</td></tr>` : ""}
         ${l.residuo > 0 && totale > l.residuo ? `<tr><td>Interessi ancora da pagare</td><td>${money(totale - l.residuo)}</td></tr>` : ""}
+        ${l.residuo > 0 ? (() => { const pct = rows.length > 12 ? 1 : 0.5; const pen = round2(l.residuo * pct / 100); return `<tr><td>Estinzione anticipata (stima, prestiti)</td><td>${money(round2(l.residuo + pen))} <span style="color:#888">(capitale + penale ${String(pct).replace(".", ",")}%)</span></td></tr>`; })() : ""}
       </table>
       <div class="print-section-title">Rate</div>
       <table class="print-table">
