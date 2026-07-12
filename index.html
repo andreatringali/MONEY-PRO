@@ -18,46 +18,55 @@
   <main id="app">
     <!-- OGGI -->
     <section id="tab-oggi" class="tab-panel active">
-      <header class="page-head dash-head">
-        <div class="date-block">
-          <span class="date-day" id="today-num">11</span>
-          <span class="date-rest">
-            <span id="today-dow">Sabato</span>
-            <span id="today-my">Luglio 2026</span>
-          </span>
+      <!-- HERO: blocco pieno con data, saldo, disponibile davvero e KPI -->
+      <div class="dash-hero">
+        <div class="dh-top">
+          <div class="dh-date">
+            <span class="dh-day" id="today-num">11</span>
+            <span class="dh-date-rest">
+              <span id="today-dow">Sabato</span>
+              <span id="today-my">Luglio 2026</span>
+            </span>
+          </div>
+          <div class="dh-balance">
+            <span class="dh-bal-lab">Saldo attuale</span>
+            <span id="hero-balance" class="dh-bal-val">€ 0,00</span>
+          </div>
         </div>
-        <div class="hero-balance">
-          <span class="hero-label">Saldo attuale</span>
-          <span id="hero-balance" class="hero-value">€ 0,00</span>
-        </div>
-      </header>
 
-      <div class="stat-cards">
-        <div class="stat-card in">
-          <span class="sc-label">Entrate <em id="dash-month"></em></span>
-          <b id="dash-in" class="sc-value">€ 0</b>
+        <div class="dh-safe">
+          <div class="dh-safe-head">
+            <span class="dh-safe-lab">Disponibile davvero</span>
+            <span id="safe-until" class="dh-safe-until"></span>
+          </div>
+          <span id="safe-value" class="dh-safe-val">€ 0,00</span>
+          <span id="safe-note" class="dh-safe-note"></span>
         </div>
-        <div class="stat-card out">
-          <span class="sc-label">Uscite <em></em></span>
-          <b id="dash-out" class="sc-value">€ 0</b>
-        </div>
-        <div class="stat-card net">
-          <span class="sc-label">Bilancio mese</span>
-          <b id="dash-net" class="sc-value">€ 0</b>
-        </div>
-        <div class="stat-card fore">
-          <span class="sc-label">Previsto 30 gg</span>
-          <b id="dash-fore" class="sc-value">€ 0</b>
+
+        <div class="dh-kpis">
+          <div class="dh-kpi in">
+            <span class="dh-k-lab">Entrate <em id="dash-month"></em></span>
+            <b id="dash-in" class="dh-k-val">€ 0</b>
+          </div>
+          <div class="dh-kpi out">
+            <span class="dh-k-lab">Uscite</span>
+            <b id="dash-out" class="dh-k-val">€ 0</b>
+          </div>
+          <div class="dh-kpi">
+            <span class="dh-k-lab">Bilancio</span>
+            <b id="dash-net" class="dh-k-val">€ 0</b>
+          </div>
+          <div class="dh-kpi">
+            <span class="dh-k-lab">Previsto 30gg</span>
+            <b id="dash-fore" class="dh-k-val">€ 0</b>
+          </div>
         </div>
       </div>
 
-      <div class="card safe-card" id="safe-card">
-        <div class="safe-top">
-          <span class="safe-label">Disponibile davvero</span>
-          <span id="safe-until" class="safe-until"></span>
-        </div>
-        <span id="safe-value" class="safe-value">€ 0,00</span>
-        <span id="safe-note" class="safe-note"></span>
+      <!-- Prossimi movimenti (timeline) -->
+      <div class="card">
+        <div class="card-head"><h3>Prossimi movimenti</h3><button class="link-btn" data-goto="movimenti">Vedi tutti</button></div>
+        <div id="dash-upcoming" class="timeline"></div>
       </div>
 
       <div class="card">

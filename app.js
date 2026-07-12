@@ -3,7 +3,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v15";
+  const APP_VERSION = "v16";
 
   // ---------- Icone (SVG inline) ----------
   const ICONS = {
@@ -326,7 +326,36 @@
         <span class="cbbar"><i style="width:${v / tmax * 100}%"></i></span></div>`;
     }).join("") : `<div class="empty">Nessuna spesa registrata questo mese.</div>`;
 
+    renderUpcoming();
     renderGoals();
+  }
+
+  // Prossimi movimenti — timeline dei prossimi 5 operazioni programmate
+  function renderUpcoming() {
+    const box = $("#dash-upcoming");
+    if (!box) return;
+    const today = todayIso();
+    const up = plannedSorted().filter((t) => t.date >= today).slice(0, 5);
+    if (!up.length) {
+      box.innerHTML = `<div class="empty">Nessun movimento in programma nei prossimi giorni.</div>`;
+      return;
+    }
+    box.innerHTML = up.map((t) => {
+      const c = catById(t.categoryId);
+      const inc = t.kind === "income";
+      const xfer = t.kind === "transfer";
+      const cls = inc ? "in" : xfer ? "xfer" : "out";
+      const sign = inc ? "+" : xfer ? "" : "−";
+      return `<div class="tl-row" data-edit="${t.id}">
+        <span class="tl-dot ${cls}"></span>
+        <div class="tl-ico">${svg(c ? c.icon : "tag")}</div>
+        <div class="tl-main">
+          <div class="tl-title">${esc(t.description || (c ? c.name : "Operazione"))}</div>
+          <div class="tl-date">${cap(fmtDateShort(t.date))}${t.auto ? ' · <span class="pill auto">auto</span>' : ""}</div>
+        </div>
+        <b class="tl-amt ${cls}">${sign}${money0(t.amount, accCurrency(t.accountId))}</b>
+      </div>`;
+    }).join("");
   }
 
   // Grafico a torta (donut) dei conti + legenda
